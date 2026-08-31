@@ -10,7 +10,6 @@ import tkinter as tk
 from tkinter import ttk, font
 import threading
 
-# Add parent directory to path so engine can be imported
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engine.autocorrect_service import AutocorrectService, CorrectionResult
@@ -25,7 +24,7 @@ class AutocorrectSandboxGUI:
         self.root.configure(bg="#121214")
 
         # Initialize Autocorrect Engine
-        self.service = AutocorrectService(confidence_threshold=0.65, revert_timeout=3.5)
+        self.service = AutocorrectService(confidence_threshold=0.55, revert_timeout=3.5)
         self.hw_info = self.service.onnx_engine.get_hardware_info()
 
         # Stats
@@ -63,7 +62,7 @@ class AutocorrectSandboxGUI:
 
         title_lbl = tk.Label(
             header_frame,
-            text="✨ AI-Powered Local Live Autocorrect (NPU / CPU)",
+            text="AI-Powered Local Live Autocorrect (NPU / CPU)",
             font=self.font_title,
             fg=self.text_primary,
             bg=self.card_bg,
@@ -74,7 +73,7 @@ class AutocorrectSandboxGUI:
 
         dev_name = self.hw_info["active_provider"].replace("ExecutionProvider", "")
         is_npu = self.hw_info["is_npu_or_gpu"]
-        badge_text = f"⚡ Engine: {dev_name} ({'NPU/GPU' if is_npu else 'CPU AVX2'})"
+        badge_text = f"Engine: {dev_name} ({'NPU/GPU' if is_npu else 'CPU AVX2'})"
         badge_color = self.accent_green if is_npu else self.accent_blue
 
         self.hw_badge = tk.Label(
@@ -98,7 +97,7 @@ class AutocorrectSandboxGUI:
 
         tk.Label(
             editor_header,
-            text="📝 Live Typing Sandbox (Type sentences with typos; hit Space to autocorrect, Tab to revert):",
+            text="Live Typing Sandbox (Type sentences with typos; hit Space to autocorrect, Tab to revert):",
             font=self.font_body,
             fg=self.text_secondary,
             bg=self.card_bg,
@@ -158,7 +157,7 @@ class AutocorrectSandboxGUI:
 
         self.latency_lbl = tk.Label(
             telemetry_frame,
-            text="⏱️ Latency: -- ms",
+            text="Latency: -- ms",
             font=("Segoe UI", 10, "bold"),
             fg=self.accent_green,
             bg=self.card_bg,
@@ -169,7 +168,7 @@ class AutocorrectSandboxGUI:
 
         self.conf_lbl = tk.Label(
             telemetry_frame,
-            text="🎯 Confidence: -- %",
+            text="Confidence: -- %",
             font=("Segoe UI", 10),
             fg=self.text_primary,
             bg=self.card_bg,
@@ -180,7 +179,7 @@ class AutocorrectSandboxGUI:
 
         self.undo_lbl = tk.Label(
             telemetry_frame,
-            text="🔄 Tab Revert: Idle",
+            text="Tab Revert: Idle",
             font=("Segoe UI", 10),
             fg=self.text_secondary,
             bg=self.card_bg,
@@ -191,7 +190,7 @@ class AutocorrectSandboxGUI:
 
         self.stats_lbl = tk.Label(
             telemetry_frame,
-            text="📊 Corrections: 0 | Reverts: 0",
+            text="Corrections: 0 | Reverts: 0",
             font=("Segoe UI", 10),
             fg=self.text_secondary,
             bg=self.card_bg,
@@ -206,7 +205,7 @@ class AutocorrectSandboxGUI:
 
         tk.Label(
             log_card,
-            text="📋 Real-Time Correction Event Stream:",
+            text="Real-Time Correction Event Stream:",
             font=("Segoe UI", 10, "bold"),
             fg=self.text_secondary,
             bg=self.card_bg,
@@ -223,7 +222,7 @@ class AutocorrectSandboxGUI:
             selectbackground="#2e2e38",
         )
         self.log_list.pack(fill=tk.X, padx=12, pady=(0, 8))
-        self._add_log("Sandbox Engine initialized. Type in the box above!")
+        self._add_log("Sandbox Engine initialized. Type in the box above.")
 
     def _bind_events(self):
         self.text_editor.bind("<Key>", self._on_key_press)
@@ -237,10 +236,9 @@ class AutocorrectSandboxGUI:
                 self._revert_in_editor(corrected, original, delim)
                 self.total_reverts += 1
                 self._update_stats()
-                self._add_log(f"↩️ REVERT TRIGGERED via [TAB]: Restored '{corrected}' -> '{original}'")
-                return "break"  # Suppress normal Tab behavior
+                self._add_log(f"REVERT TRIGGERED via [TAB]: Restored '{corrected}' -> '{original}'")
+                return "break"
             else:
-                # Tab is not armed, allow default behavior
                 return None
 
         # 2. Handle Backspace Key
@@ -248,98 +246,108 @@ class AutocorrectSandboxGUI:
             self.service.feed_backspace()
             return None
 
-        # 3. Handle Space / Delimiters (Autocorrect Trigger)
-        if event.char in (" ", ".", ",", "!", "?", "\n"):
-            char = event.char
-            committed_word, result = self.service.handle_delimiter_commit(char)
+        # 3. Handle Delimiters (Space, Enter, Period, Comma, etc.)
+        if event.char in (" ", "\r", "\n", ".", ",", "!", "?"):
+            delim = "\n" if event.char == "\r" else event.char
+            
+            raw_word, res = self.service.handle_delimiter_commit(delimiter=delim)
 
-            if result.is_corrected:
-                # Replace in editor text
-                self._replace_in_editor(result.original_word, result.corrected_word, char)
+            # Update Telemetry Display
+            self.latency_lbl.config(text=f"Latency: {res.latency_ms:.2f} ms")
+            self.conf_lbl.config(text=f"Confidence: {res.confidence * 100:.1f}%")
+
+            if res.is_corrected:
+                self._replace_last_word_in_editor(raw_word, res.corrected_word, delim)
                 self.total_corrections += 1
                 self._update_stats()
-                self._add_log(
-                    f"✨ {result.explanation} | Latency: {result.latency_ms:.2f}ms | Conf: {result.confidence:.1%}"
-                )
-                self._update_telemetry(result)
-                return "break"  # Handled inline
-            else:
-                self._update_telemetry(result)
-                return None
+                self._add_log(f"CORRECTED: '{raw_word}' -> '{res.corrected_word}' ({res.latency_ms:.2f}ms, {res.confidence * 100:.1f}%)")
+                return "break"
 
-        # 4. Handle Normal Alphanumeric Characters
+            return None
+
+        # 4. Standard Character Input
         if event.char and event.char.isprintable():
             self.service.feed_character(event.char)
 
         return None
 
-    def _replace_in_editor(self, original: str, corrected: str, delimiter: str):
-        """Atomically replaces the original word before cursor with corrected word + delimiter."""
-        cursor_pos = self.text_editor.index(tk.INSERT)
-        # Delete original word length from cursor
-        start_pos = f"{cursor_pos} - {len(original)} chars"
-        self.text_editor.delete(start_pos, cursor_pos)
-        self.text_editor.insert(tk.INSERT, f"{corrected}{delimiter}")
+    def _replace_last_word_in_editor(self, original: str, corrected: str, delim: str):
+        pos = self.text_editor.index(tk.INSERT)
+        
+        erase_start = f"{pos} - {len(original)} chars"
+        self.text_editor.delete(erase_start, pos)
+        self.text_editor.insert(erase_start, corrected + delim)
 
-    def _revert_in_editor(self, corrected: str, original: str, delimiter: str):
-        """Atomically restores the original typo upon Tab press."""
-        cursor_pos = self.text_editor.index(tk.INSERT)
-        # Erase corrected word + delimiter
-        erase_len = len(corrected) + len(delimiter)
-        start_pos = f"{cursor_pos} - {erase_len} chars"
-        self.text_editor.delete(start_pos, cursor_pos)
-        self.text_editor.insert(tk.INSERT, f"{original}{delimiter}")
-
-    def _update_telemetry(self, result: CorrectionResult):
-        latency_color = self.accent_green if result.latency_ms < 15.0 else self.accent_amber
-        self.latency_lbl.config(text=f"⏱️ Latency: {result.latency_ms:.2f} ms", fg=latency_color)
-        self.conf_lbl.config(text=f"🎯 Confidence: {result.confidence:.1%}")
+    def _revert_in_editor(self, corrected: str, original: str, delim: str):
+        pos = self.text_editor.index(tk.INSERT)
+        total_len = len(corrected) + len(delim)
+        erase_start = f"{pos} - {total_len} chars"
+        self.text_editor.delete(erase_start, pos)
+        self.text_editor.insert(erase_start, original + delim)
 
     def _update_stats(self):
         self.stats_lbl.config(
-            text=f"📊 Corrections: {self.total_corrections} | Reverts: {self.total_reverts}"
+            text=f"Corrections: {self.total_corrections} | Reverts: {self.total_reverts}"
         )
 
     def _add_log(self, message: str):
         timestamp = time.strftime("%H:%M:%S")
-        self.log_list.insert(0, f"[{timestamp}] {message}")
-        if self.log_list.size() > 20:
-            self.log_list.delete(20, tk.END)
+        entry = f"[{timestamp}] {message}"
+        self.log_list.insert(0, entry)
+        if self.log_list.size() > 50:
+            self.log_list.delete(tk.END)
 
     def _clear_editor(self):
         self.text_editor.delete("1.0", tk.END)
         self.service.reset()
-        self._add_log("Editor cleared and context reset.")
+        self.latency_lbl.config(text="Latency: -- ms")
+        self.conf_lbl.config(text="Confidence: -- %")
+        self.undo_lbl.config(text="Tab Revert: Idle", fg=self.text_secondary)
+        self._add_log("Editor cleared.")
 
     def _load_sample(self):
+        sample = "I want to go to the parck "
         self.text_editor.delete("1.0", tk.END)
         self.service.reset()
-        sample = "I want to go to the "
-        self.text_editor.insert(tk.INSERT, sample)
-        for word in ["I", "want", "to", "go", "to", "the"]:
-            for c in word:
-                self.service.feed_character(c)
-            self.service.handle_delimiter_commit(" ")
-        self._add_log("Loaded demo context: 'I want to go to the '. Now type 'parck' and hit Space!")
+
+        for char in sample:
+            if char == " ":
+                raw_word, res = self.service.handle_delimiter_commit(delimiter=" ")
+                if res.is_corrected:
+                    self.text_editor.insert(tk.END, res.corrected_word + " ")
+                    self.total_corrections += 1
+                    self._update_stats()
+                    self._add_log(f"Sample loaded: Corrected '{raw_word}' -> '{res.corrected_word}'")
+                else:
+                    self.text_editor.insert(tk.END, " ")
+            else:
+                self.text_editor.insert(tk.END, char)
+                self.service.feed_character(char)
+
+        self.text_editor.focus_set()
+        self.text_editor.mark_set(tk.INSERT, tk.END)
 
     def _start_status_poller(self):
-        """Polls UndoManager status to update the Tab Revert badge in real time."""
         def poll():
-            if self.service.undo_manager.can_revert():
-                remaining = max(
-                    0.0,
-                    self.service.undo_manager.timeout_seconds
-                    - (time.monotonic() - self.service.undo_manager.timestamp),
-                )
-                self.undo_lbl.config(
-                    text=f"🔄 Tab Revert: Armed for '{self.service.undo_manager.corrected_word}' ({remaining:.1f}s)",
-                    fg=self.accent_amber,
-                )
-            else:
-                self.undo_lbl.config(text="🔄 Tab Revert: Idle", fg=self.text_secondary)
-            self.root.after(100, poll)
+            while True:
+                time.sleep(0.2)
+                try:
+                    if self.service.undo_manager.is_active():
+                        rem = self.service.undo_manager.remaining_time()
+                        self.root.after(0, lambda r=rem: self.undo_lbl.config(
+                            text=f"Tab Revert: Armed ({r:.1f}s)",
+                            fg=self.accent_amber
+                        ))
+                    else:
+                        self.root.after(0, lambda: self.undo_lbl.config(
+                            text="Tab Revert: Idle",
+                            fg=self.text_secondary
+                        ))
+                except Exception:
+                    pass
 
-        self.root.after(100, poll)
+        t = threading.Thread(target=poll, daemon=True)
+        t.start()
 
 
 def main():
