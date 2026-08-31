@@ -1,0 +1,22 @@
+# Python Virtual Environment & Binaries
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & OS Metadata
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE configuration
+.vscode/
+.idea/
