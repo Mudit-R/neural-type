@@ -187,6 +187,32 @@ class AutocorrectService:
                     explanation=f"Valid short word preserved: '{clean_word}'",
                 )
 
+        # 3c. Opening words guard: When typing the initial 1-2 words of a document or sentence,
+        # never attempt real-word or homophone mutations (e.g. there/their, peace/piece) because
+        # there is insufficient context. Obvious typos (parck, wierd) and contractions (dont, cant) are still corrected.
+        context_words = (
+            self.context_buffer.get_context_words()
+            if explicit_context is None
+            else explicit_context.split()
+        )
+        is_known = (
+            self.candidate_generator.is_valid_word(clean_word)
+            and clean_word not in self.candidate_generator.contractions
+            and clean_word not in self.candidate_generator.common_typos
+        )
+        is_homophone = clean_word in self.candidate_generator.homophone_clusters
+        if (is_known or is_homophone) and len(context_words) < 2:
+            return CorrectionResult(
+                is_corrected=False,
+                original_word=word,
+                corrected_word=word,
+                delimiter=delimiter,
+                confidence=1.0,
+                latency_ms=0.01,
+                device=hardware,
+                explanation=f"Preserved opening word '{clean_word}' (Requires >=2 context words for real-word substitution)",
+            )
+
         # 4. Retrieve candidates from fast SymSpell / Confusable Lexicon
         candidate_entries = self.candidate_generator.get_candidates(clean_word, max_candidates=6)
         if not candidate_entries:
