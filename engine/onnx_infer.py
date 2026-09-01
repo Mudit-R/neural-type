@@ -4,6 +4,7 @@ Supports DirectML (Intel AI Boost / AMD Ryzen AI NPU / GPU) and CPU (AVX2/AVX-51
 """
 
 import os
+import sys
 import time
 import math
 import numpy as np
@@ -23,7 +24,20 @@ class OnnxInferenceEngine:
         model_path: Optional[str] = None,
         tokenizer_dir: Optional[str] = None,
     ):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if getattr(sys, "frozen", False):
+            candidates = [
+                getattr(sys, "_MEIPASS", ""),
+                os.path.join(getattr(sys, "_MEIPASS", ""), "_internal"),
+                os.path.dirname(sys.executable),
+                os.path.join(os.path.dirname(sys.executable), "_internal"),
+            ]
+            base_dir = next(
+                (c for c in candidates if c and os.path.exists(os.path.join(c, "models", "corrector_model_quant.onnx"))),
+                candidates[0],
+            )
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
         if model_path is None:
             model_path = os.path.join(base_dir, "models", "corrector_model_quant.onnx")
         if tokenizer_dir is None:

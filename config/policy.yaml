@@ -1,0 +1,131 @@
+# ==============================================================================
+# Neural-Type: Enterprise Deployment Policy Configuration
+# ==============================================================================
+# This configuration file defines standard operating policies for Neural-Type
+# across enterprise endpoints. It can be distributed via Microsoft Intune, SCCM,
+# or Active Directory Group Policy (GPO) to %ProgramData%\NeuralType\policy.yaml.
+# ==============================================================================
+
+version: "1.0"
+organization: "Enterprise Standard Policy"
+
+# ------------------------------------------------------------------------------
+# 1. Global Keyboard Hook & Application Targeting
+# ------------------------------------------------------------------------------
+hook:
+  # Master toggle for system-wide background typing interception
+  enabled: true
+
+  # Hotkey definitions for operator control
+  hotkey_toggle: "ctrl+alt+a"      # Pause / Resume global hook
+  emergency_kill: "ctrl+alt+q"     # Immediate kill-switch
+  revert_hotkey: "tab"             # Undo last correction
+
+  # Application Allowlist:
+  # If populated, Neural-Type will ONLY activate in processes matching these names.
+  # Leave empty [] to allow all applications except those in denylist.
+  allowlist: []
+  # Example:
+  # - "winword.exe"
+  # - "outlook.exe"
+  # - "teams.exe"
+  # - "slack.exe"
+  # - "chrome.exe"
+  # - "msedge.exe"
+
+  # Application Denylist:
+  # Neural-Type is strictly disabled when the foreground process matches any of these.
+  # Recommended for password managers, terminals, and secret-handling utilities.
+  denylist:
+    - "1password.exe"
+    - "keepass.exe"
+    - "bitwarden.exe"
+    - "lastpass.exe"
+    - "cmd.exe"
+    - "powershell.exe"
+    - "powershell_ise.exe"
+    - "wt.exe"                      # Windows Terminal
+    - "conhost.exe"
+    - "putty.exe"
+    - "mstsc.exe"                    # Remote Desktop
+
+# ------------------------------------------------------------------------------
+# 2. Enterprise Privacy Guard & On-Device PII Protection
+# ------------------------------------------------------------------------------
+privacy_guard:
+  # Master toggle for on-device privacy scanning
+  enabled: true
+
+  # Automatically redact detected sensitive tokens upon word delimiter commit
+  auto_redact_on_commit: false
+
+  # Active compliance vertical profile:
+  # Options: "all", "general", "healthcare", "legal", "financial"
+  vertical_profile: "all"
+
+  # Granular detector controls:
+  detectors:
+    # Generic Enterprise Credentials & PII
+    ai_secret_keys: true           # OpenAI, Anthropic, HuggingFace API keys
+    github_tokens: true            # GitHub Personal Access Tokens (ghp_)
+    aws_access_keys: true          # AWS Access Key IDs (AKIA)
+    social_security_numbers: true  # US SSNs (XXX-XX-XXXX)
+    database_uris: true            # postgres://, mysql://, mongodb:// URIs
+    credentials_passwords: true    # password = "..." patterns
+    credit_cards: true             # Major credit card numbers
+
+    # Healthcare Vertical (HIPAA Protected Health Information)
+    patient_ids: true              # Patient identifiers / MRNs
+    icd10_diagnosis_codes: true    # ICD-10-CM diagnosis code patterns
+    medical_record_numbers: true   # Formatted MRN tokens
+
+    # Legal Vertical (Attorney-Client Privilege Protection)
+    case_docket_numbers: true      # Federal & State court case docket formats
+    privileged_phrases: true       # "Attorney-Client Privileged", "Work Product", etc.
+
+    # Financial Vertical (GLBA & PCI-DSS Protection)
+    bank_routing_numbers: true     # ABA 9-digit routing transit numbers
+    bank_account_numbers: true     # Standard bank account patterns
+    swift_bic_codes: true          # ISO 9362 SWIFT/BIC codes
+    iban_numbers: true             # International Bank Account Numbers (IBAN)
+
+# ------------------------------------------------------------------------------
+# 3. Tone Transformation Policy
+# ------------------------------------------------------------------------------
+tone_transformation:
+  # Master toggle for offline tone morphing
+  enabled: true
+
+  # Allowed transformation styles
+  allowed_modes:
+    - "professional"
+    - "casual"
+    - "concise"
+
+# ------------------------------------------------------------------------------
+# 4. Compliance Audit Logging & Evidence Trail
+# ------------------------------------------------------------------------------
+audit_logging:
+  # Master toggle for zero-egress JSONL audit logging
+  enabled: true
+
+  # Local filesystem path for structured logs (never transmitted off-device)
+  log_dir: "audit_logs"
+  filename: "audit_trail.jsonl"
+
+  # Retention window: rotated archives older than this threshold are pruned
+  retention_days: 90
+
+  # Active log file size before automatic rotation (MB)
+  max_file_size_mb: 10
+
+  # Enforce socket-level network isolation self-check on startup
+  enforce_zero_egress: true
+
+# ------------------------------------------------------------------------------
+# 5. Autocorrect Engine Tuning
+# ------------------------------------------------------------------------------
+autocorrect:
+  confidence_threshold: 0.55
+  revert_timeout_seconds: 3.5
+  max_edit_distance: 2

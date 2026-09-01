@@ -31,6 +31,54 @@ class CandidateGenerator:
         if not self.sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1):
             raise RuntimeError(f"Failed to load SymSpell dictionary from {dictionary_path}")
 
+        # Seed essential conversational and technical vocabulary into dictionary
+        self.essential_words = {
+            "ok": 5_000_000_000,
+            "okay": 1_000_000_000,
+            "hi": 2_000_000_000,
+            "hey": 1_500_000_000,
+            "hello": 2_500_000_000,
+            "pls": 500_000_000,
+            "please": 3_000_000_000,
+            "thx": 500_000_000,
+            "thanks": 2_000_000_000,
+            "ai": 2_000_000_000,
+            "app": 1_500_000_000,
+            "apps": 1_000_000_000,
+            "api": 1_500_000_000,
+            "url": 1_000_000_000,
+            "ceo": 500_000_000,
+            "cto": 500_000_000,
+            "cfo": 500_000_000,
+            "vp": 500_000_000,
+            "hr": 500_000_000,
+            "pr": 500_000_000,
+            "ui": 800_000_000,
+            "ux": 800_000_000,
+            "os": 1_000_000_000,
+            "db": 500_000_000,
+            "id": 1_500_000_000,
+            "ids": 500_000_000,
+            "ip": 1_000_000_000,
+            "pc": 1_000_000_000,
+            "tv": 1_000_000_000,
+            "vs": 1_000_000_000,
+            "etc": 1_500_000_000,
+            "am": 3_000_000_000,
+            "pm": 3_000_000_000,
+            "dr": 1_000_000_000,
+            "mr": 2_000_000_000,
+            "ms": 1_000_000_000,
+            "mrs": 1_000_000_000,
+            "asap": 500_000_000,
+            "faq": 500_000_000,
+            "yeah": 1_000_000_000,
+            "yep": 500_000_000,
+            "nope": 500_000_000,
+        }
+        for w, f in self.essential_words.items():
+            self.sym_spell.words[w] = f
+
         # High-frequency contractions mapping
         self.contractions = {
             "dont": "don't",
@@ -50,14 +98,10 @@ class CandidateGenerator:
             "wouldnt": "wouldn't",
             "theyre": "they're",
             "youre": "you're",
-            "were": "we're",
-            "its": "it's",
             "thats": "that's",
             "whats": "what's",
             "im": "i'm",
             "ive": "i've",
-            "ill": "i'll",
-            "id": "i'd",
         }
 
         # Common English typo transposition fast-table
@@ -164,6 +208,8 @@ class CandidateGenerator:
             return True
         if clean in self.common_typos or clean in self.homophone_clusters or clean in self.contractions:
             return False
+        if clean in self.essential_words:
+            return True
         
         freq = self.sym_spell.words.get(clean, 0)
         # Require frequency > 100,000 to bypass neural checks completely
@@ -172,7 +218,7 @@ class CandidateGenerator:
     def is_valid_word(self, word: str) -> bool:
         """Checks if word exists anywhere in dictionary."""
         clean = word.lower().strip()
-        return clean in self.sym_spell.words
+        return clean in self.sym_spell.words or clean in self.essential_words
 
     def get_candidates(self, word: str, max_candidates: int = 6) -> List[Tuple[str, int, int]]:
         """

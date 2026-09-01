@@ -8,7 +8,15 @@ from .onnx_infer import OnnxInferenceEngine
 from .undo_manager import UndoManager
 from .text_expander import TextExpander
 from .tone_transformer import ToneTransformer
-from .privacy_guard import PrivacyGuard
+from .privacy_guard import (
+    PrivacyGuard,
+    GenericCredentialsDetector,
+    HealthcareDetector,
+    LegalDetector,
+    FinancialDetector,
+)
+from .audit_log import ComplianceAuditLogger
+from .policy_config import PolicyConfig
 from .autocorrect_service import AutocorrectService, CorrectionResult
 
 __all__ = [
@@ -19,6 +27,14 @@ __all__ = [
     "TextExpander",
     "ToneTransformer",
     "PrivacyGuard",
+    "GenericCredentialsDetector",
+    "HealthcareDetector",
+    "LegalDetector",
+    "FinancialDetector",
+    "ComplianceAuditLogger",
+    "PolicyConfig",
     "AutocorrectService",
     "CorrectionResult",
 ]
+
+

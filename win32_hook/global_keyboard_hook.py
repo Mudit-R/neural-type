@@ -14,31 +14,72 @@ from pynput.keyboard import Key, KeyCode, Controller
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engine.autocorrect_service import AutocorrectService, CorrectionResult
+from engine.policy_config import PolicyConfig
 
 
 class GlobalAutocorrectHook:
-    def __init__(self):
-        print("=" * 60)
-        print("  AI-POWERED LOCAL LIVE AUTOCORRECT - WINDOWS GLOBAL HOOK")
-        print("=" * 60)
-        print("  Controls:")
-        print("    [Ctrl + Alt + A] : Toggle Global Autocorrect ON / OFF")
-        print("    [Ctrl + Alt + Q] : Emergency Exit / Stop Service")
-        print("    [Tab]            : Instant Revert Last Correction")
-        print("=" * 60)
+    def __init__(self, policy: PolicyConfig = None):
+        print("=" * 60, flush=True)
+        print("  AI-POWERED LOCAL LIVE AUTOCORRECT - WINDOWS GLOBAL HOOK", flush=True)
+        print("=" * 60, flush=True)
+        print("  Controls:", flush=True)
+        print("    [Ctrl + Alt + A] : Toggle Global Autocorrect ON / OFF", flush=True)
+        print("    [Ctrl + Alt + Q] : Emergency Exit / Stop Service", flush=True)
+        print("    [Tab]            : Instant Revert Last Correction", flush=True)
+        print("=" * 60, flush=True)
 
-        self.service = AutocorrectService(confidence_threshold=0.65, revert_timeout=3.5)
+        self.policy = policy or PolicyConfig()
+        self.service = AutocorrectService(policy=self.policy)
         self.keyboard_controller = Controller()
-        self.is_enabled = True
+        self.is_enabled = self.policy.is_hook_enabled()
         self.is_running = True
-
-        # State tracking to prevent infinite loops from simulated keystrokes
         self.is_simulating_input = False
         self.ctrl_pressed = False
         self.alt_pressed = False
+        self.last_active_proc = ""
 
-    def on_press(self, key):
-        if not self.is_running or self.is_simulating_input:
+    def _get_active_process_name(self) -> str:
+        """Retrieves the process executable name of the current foreground window."""
+        try:
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if not hwnd:
+                return ""
+            pid = wintypes.DWORD()
+            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value == 0:
+                return ""
+            # PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            h_proc = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid.value)
+            if not h_proc:
+                return ""
+            buf = ctypes.create_unicode_buffer(512)
+            size = wintypes.DWORD(512)
+            exe_name = ""
+            if ctypes.windll.kernel32.QueryFullProcessImageNameW(h_proc, 0, buf, ctypes.byref(size)):
+                full_path = buf.value
+                exe_name = os.path.basename(full_path).lower()
+            ctypes.windll.kernel32.CloseHandle(h_proc)
+            return exe_name
+        except Exception:
+            return ""
+
+    def on_press(self, key, injected=False):
+        # Ignore synthetic/simulated keystrokes or while service is paused/busy
+        if injected or not self.is_running or self.is_simulating_input:
+            return
+
+        # Check enterprise policy hook status
+        if not self.policy.is_hook_enabled():
+            return
+
+        # Check application switch & allowlist / denylist
+        active_proc = self._get_active_process_name()
+        if active_proc != self.last_active_proc:
+            self.last_active_proc = active_proc
+            self.service.context_buffer.current_word_chars.clear()
+            self.service.undo_manager.invalidate()
+
+        if active_proc and not self.policy.is_app_allowed(active_proc):
             return
 
         # 1. Track Modifiers
@@ -55,11 +96,11 @@ class GlobalAutocorrectHook:
                 if key.char.lower() == "a":
                     self.is_enabled = not self.is_enabled
                     state = "ENABLED (Active)" if self.is_enabled else "PAUSED (Disabled)"
-                    print(f"\n[HOTKEY] Global Autocorrect is now: {state}")
+                    print(f"\n[HOTKEY] Global Autocorrect is now: {state}", flush=True)
                     self.service.reset()
                     return
                 elif key.char.lower() == "q":
-                    print("\n[HOTKEY] Emergency Exit Triggered. Stopping Service...")
+                    print("\n[HOTKEY] Emergency Exit Triggered. Stopping Service...", flush=True)
                     self.is_running = False
                     return False  # Stops listener
 
@@ -72,7 +113,7 @@ class GlobalAutocorrectHook:
             revert = self.service.handle_tab_revert()
             if revert:
                 corrected, original, delim = revert
-                print(f"[REVERT] Restoring '{corrected}' -> '{original}'")
+                print(f"[REVERT] Restoring '{corrected}' -> '{original}'", flush=True)
                 self._dispatch_revert(corrected, original, delim)
             return
 
@@ -81,7 +122,17 @@ class GlobalAutocorrectHook:
             self.service.feed_backspace()
             return
 
-        # 5. Handle Delimiters (Space, Enter)
+        # 5. Handle Navigation / Cursor movement (resets active word buffer)
+        if key in (
+            Key.left, Key.right, Key.up, Key.down,
+            Key.home, Key.end, Key.page_up, Key.page_down,
+            Key.esc, Key.delete
+        ):
+            self.service.context_buffer.current_word_chars.clear()
+            self.service.undo_manager.invalidate()
+            return
+
+        # 6. Handle Delimiters (Space, Enter)
         if key == Key.space:
             self._handle_delimiter(" ")
             return
@@ -89,7 +140,7 @@ class GlobalAutocorrectHook:
             self._handle_delimiter("\n")
             return
 
-        # 6. Handle Printable Characters
+        # 7. Handle Printable Characters
         if hasattr(key, "char") and key.char:
             char = key.char
             if char in (".", ",", "!", "?", ";", ":"):
@@ -97,7 +148,9 @@ class GlobalAutocorrectHook:
             elif char.isprintable():
                 self.service.feed_character(char)
 
-    def on_release(self, key):
+    def on_release(self, key, injected=False):
+        if injected:
+            return
         if key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r):
             self.ctrl_pressed = False
         if key in (Key.alt, Key.alt_l, Key.alt_r, Key.alt_gr):
@@ -106,7 +159,7 @@ class GlobalAutocorrectHook:
     def _handle_delimiter(self, delimiter: str):
         committed_word, result = self.service.handle_delimiter_commit(delimiter)
         if result.is_corrected:
-            print(f"[AUTOCORRECT] {result.explanation} | Latency: {result.latency_ms:.2f}ms")
+            print(f"[AUTOCORRECT] {result.explanation} | Latency: {result.latency_ms:.2f}ms", flush=True)
             self._dispatch_replacement(result.original_word, result.corrected_word, delimiter)
 
     def _dispatch_replacement(self, original: str, corrected: str, delimiter: str):
@@ -118,10 +171,12 @@ class GlobalAutocorrectHook:
             for _ in range(erase_count):
                 self.keyboard_controller.press(Key.backspace)
                 self.keyboard_controller.release(Key.backspace)
-                time.sleep(0.001)
+                time.sleep(0.002)
 
+            time.sleep(0.005)
             # Type corrected word + delimiter
             self.keyboard_controller.type(f"{corrected}{delimiter}")
+            time.sleep(0.015)
         finally:
             self.is_simulating_input = False
 
@@ -134,16 +189,19 @@ class GlobalAutocorrectHook:
             for _ in range(erase_count):
                 self.keyboard_controller.press(Key.backspace)
                 self.keyboard_controller.release(Key.backspace)
-                time.sleep(0.001)
+                time.sleep(0.002)
 
+            time.sleep(0.005)
             # Type original typo + delimiter
             self.keyboard_controller.type(f"{original}{delimiter}")
+            time.sleep(0.015)
         finally:
             self.is_simulating_input = False
 
     def run(self):
-        print(f"\n[STATUS] Global Hook Active across Windows.")
-        print(f"[STATUS] Hardware Acceleration: {self.service.onnx_engine.active_provider}")
+        print(f"\n[STATUS] Global Hook Active across Windows.", flush=True)
+        print(f"[STATUS] Hardware Acceleration: {self.service.onnx_engine.active_provider}", flush=True)
+        print(f"[READY] Type in any application (Notepad, Word, Chrome). Try: 'went to the parck '\n", flush=True)
         with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
             listener.join()
 

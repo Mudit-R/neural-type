@@ -20,3 +20,12 @@ Thumbs.db
 # IDE configuration
 .vscode/
 .idea/
+
+# Audit Logs
+audit_logs/*.jsonl
+
+# Build & Packaging Artifacts
+dist/
+build/
+*.spec
+

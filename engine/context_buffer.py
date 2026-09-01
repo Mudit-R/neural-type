@@ -23,9 +23,19 @@ class ContextBuffer:
         self.current_word_chars.append(char)
 
     def pop_char(self) -> Optional[str]:
-        """Handles Backspace by removing the last typed character."""
+        """
+        Handles Backspace:
+        1. If in-flight buffer has characters, removes the last typed character.
+        2. If in-flight buffer is empty (user backspaces across a space/delimiter),
+           uncommits the previous word from history back into in-flight characters.
+        """
         if self.current_word_chars:
             return self.current_word_chars.pop()
+
+        if self.history:
+            prev_word = self.history.pop()
+            self.current_word_chars = list(prev_word)
+            return " "
         return None
 
     def get_current_word(self) -> str:

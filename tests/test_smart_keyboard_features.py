@@ -80,3 +80,28 @@ def test_privacy_guard():
     # Clean text (no false positive)
     clean_text = "This is a normal email without any confidential data."
     assert len(guard.scan(clean_text)) == 0
+
+
+def test_compliance_audit_logging(service):
+    """Verifies that operations through AutocorrectService generate compliance audit entries."""
+    stats_before = service.audit_logger.get_audit_stats()
+    count_before = stats_before["total_events"]
+
+    # Trigger a correction
+    res = service.evaluate_word("parck", explicit_context="went to the")
+    assert res.is_corrected is True
+
+    # Trigger tone transform
+    service.transform_tone("hey gotta do it asap", mode="professional")
+
+    # Trigger PII scan & redact
+    service.scan_privacy("Token: ghp_1234567890abcdef1234567890abcdef12")
+    service.redact_privacy("Token: ghp_1234567890abcdef1234567890abcdef12")
+
+    stats_after = service.audit_logger.get_audit_stats()
+    assert stats_after["total_events"] > count_before
+    assert stats_after["total_egress_bytes"] == 0
+    recent = service.audit_logger.get_recent_events(limit=5)
+    assert len(recent) > 0
+    assert recent[0]["network_status"] == "AIR_GAPPED"
+

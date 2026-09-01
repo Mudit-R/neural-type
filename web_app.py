@@ -772,8 +772,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"findings": findings})
         elif self.path == "/api/redact_privacy":
             text = req_data.get("text", "")
-            redacted = service.privacy_guard.redact(text)
+            redacted = service.redact_privacy(text)
             self._send_json({"redacted": redacted})
+        elif self.path == "/api/audit_stats":
+            stats = service.audit_logger.get_audit_stats()
+            self._send_json(stats)
         elif self.path == "/api/revert":
             revert = service.handle_tab_revert()
             if revert:

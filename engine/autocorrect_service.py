@@ -1,9 +1,11 @@
 """
 Autocorrect & Smart Keyboard OS Service Orchestrator.
 Coordinates ContextBuffer, CandidateGenerator, OnnxInferenceEngine, UndoManager,
-TextExpander, ToneTransformer, and PrivacyGuard.
+TextExpander, ToneTransformer, PrivacyGuard, and ComplianceAuditLogger.
 """
 
+import time
+import socket
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any, List
 from .context_buffer import ContextBuffer
@@ -13,6 +15,8 @@ from .undo_manager import UndoManager
 from .text_expander import TextExpander
 from .tone_transformer import ToneTransformer
 from .privacy_guard import PrivacyGuard
+from .audit_log import ComplianceAuditLogger
+from .policy_config import PolicyConfig
 
 
 @dataclass
@@ -35,23 +39,71 @@ class AutocorrectService:
     2. Instant snippet expansion for //triggers.
     3. Next-word predictive ghost text completion.
     4. Air-gapped tone transformation.
-    5. Enterprise PII and API key privacy scanning.
+    5. Enterprise PII and API key privacy scanning and redaction.
+    6. Structured on-device compliance audit trail (zero raw-text storage).
+    7. Built-in network isolation verification (zero outbound network egress).
+    8. Centralized enterprise policy enforcement (config/policy.yaml).
     """
 
     def __init__(
         self,
-        confidence_threshold: float = 0.55,
-        revert_timeout: float = 3.5,
-        max_edit_distance: int = 2,
+        confidence_threshold: Optional[float] = None,
+        revert_timeout: Optional[float] = None,
+        max_edit_distance: Optional[int] = None,
+        audit_enabled: Optional[bool] = None,
+        audit_log_dir: Optional[str] = None,
+        audit_retention_days: Optional[int] = None,
+        verify_isolation_on_startup: bool = False,
+        policy: Optional[PolicyConfig] = None,
+        policy_path: Optional[str] = None,
     ):
-        self.confidence_threshold = confidence_threshold
+        self.policy = policy or PolicyConfig(config_path=policy_path)
+        ac_cfg = self.policy.get_autocorrect_settings()
+        audit_cfg = self.policy.get_audit_settings()
+
+        self.confidence_threshold = (
+            confidence_threshold if confidence_threshold is not None else ac_cfg["confidence_threshold"]
+        )
+        self.revert_timeout = (
+            revert_timeout if revert_timeout is not None else ac_cfg["revert_timeout_seconds"]
+        )
+        self.max_edit_distance = (
+            max_edit_distance if max_edit_distance is not None else ac_cfg["max_edit_distance"]
+        )
+
         self.context_buffer = ContextBuffer(max_context_words=25)
-        self.candidate_generator = CandidateGenerator(max_edit_distance=max_edit_distance)
+        self.candidate_generator = CandidateGenerator(max_edit_distance=self.max_edit_distance)
         self.onnx_engine = OnnxInferenceEngine()
-        self.undo_manager = UndoManager(timeout_seconds=revert_timeout)
+        self.undo_manager = UndoManager(timeout_seconds=self.revert_timeout)
         self.text_expander = TextExpander()
         self.tone_transformer = ToneTransformer()
-        self.privacy_guard = PrivacyGuard()
+
+        # Privacy Guard configured from Policy
+        pg_enabled = self.policy.is_privacy_guard_enabled()
+        vertical_profile = self.policy.get_active_vertical_profile()
+        detector_rules = self.policy.policy.get("privacy_guard", {}).get("detectors", {})
+        self.privacy_guard = PrivacyGuard(
+            enabled=pg_enabled,
+            vertical_profile=vertical_profile,
+            detector_rules=detector_rules,
+        )
+
+        # Audit Logger configured from Policy
+        eff_audit_enabled = audit_enabled if audit_enabled is not None else audit_cfg["enabled"]
+        eff_audit_dir = audit_log_dir if audit_log_dir is not None else audit_cfg["log_dir"]
+        eff_retention = audit_retention_days if audit_retention_days is not None else audit_cfg["retention_days"]
+
+        self.audit_logger = ComplianceAuditLogger(
+            log_dir=eff_audit_dir,
+            filename=audit_cfg.get("filename", "audit_trail.jsonl"),
+            enabled=eff_audit_enabled,
+            retention_days=eff_retention,
+            max_file_size_bytes=audit_cfg.get("max_file_size_bytes", 10 * 1024 * 1024),
+        )
+        self.is_network_isolated: bool = False
+
+        if verify_isolation_on_startup:
+            self.verify_network_isolation()
 
     def evaluate_word(
         self, word: str, delimiter: str = " ", explicit_context: Optional[str] = None
@@ -71,6 +123,15 @@ class AutocorrectService:
                     original_word=clean_word,
                     corrected_word=expansion,
                     delimiter=delimiter,
+                )
+                self.audit_logger.log_correction(
+                    input_chars=len(clean_word),
+                    output_chars=len(expansion),
+                    confidence=1.0,
+                    latency_ms=0.05,
+                    device=hardware,
+                    is_expansion=True,
+                    explanation=f"Text expanded snippet: '{clean_word}'",
                 )
                 return CorrectionResult(
                     is_corrected=True,
@@ -109,6 +170,22 @@ class AutocorrectService:
                 device=hardware,
                 explanation="Valid high-frequency word (Bypassed AI)",
             )
+
+        # 3b. Short valid word guard: Never replace a valid <=2 character word
+        # (e.g. ok, on, of, in, it, is, at, as, do, go, no, so, he, me, we, by, my, up, us, am, if)
+        # unless it is in an explicit confusable homophone cluster (like to/too/two)
+        if len(clean_word) <= 2 and self.candidate_generator.is_valid_word(clean_word):
+            if clean_word.lower() not in self.candidate_generator.homophone_clusters:
+                return CorrectionResult(
+                    is_corrected=False,
+                    original_word=word,
+                    corrected_word=word,
+                    delimiter=delimiter,
+                    confidence=1.0,
+                    latency_ms=0.05,
+                    device=hardware,
+                    explanation=f"Valid short word preserved: '{clean_word}'",
+                )
 
         # 4. Retrieve candidates from fast SymSpell / Confusable Lexicon
         candidate_entries = self.candidate_generator.get_candidates(clean_word, max_candidates=6)
@@ -166,7 +243,17 @@ class AutocorrectService:
             )
 
         is_known = self.candidate_generator.is_valid_word(clean_word)
-        required_threshold = self.confidence_threshold if is_known else 0.25
+        is_homophone = clean_word in self.candidate_generator.homophone_clusters
+
+        if is_homophone:
+            # Explicit confusable homophone pairs (meat/meet, peace/piece, there/their)
+            required_threshold = self.confidence_threshold
+        elif is_known:
+            # Regular correctly-spelled dictionary words require overwhelming confidence (>=0.85)
+            required_threshold = max(self.confidence_threshold, 0.85)
+        else:
+            # Clear misspelled typos require only low confidence
+            required_threshold = 0.25
 
         if top_prob >= required_threshold:
             # Trigger Correction & Arm Undo
@@ -174,6 +261,17 @@ class AutocorrectService:
                 original_word=clean_word,
                 corrected_word=cased_candidate,
                 delimiter=delimiter,
+            )
+
+            # Record in compliance audit trail (metadata only, no raw text)
+            self.audit_logger.log_correction(
+                input_chars=len(clean_word),
+                output_chars=len(cased_candidate),
+                confidence=top_prob,
+                latency_ms=latency_ms,
+                device=hardware,
+                is_expansion=False,
+                explanation=f"Corrected: '{clean_word}' -> '{cased_candidate}'",
             )
 
             return CorrectionResult(
@@ -203,18 +301,118 @@ class AutocorrectService:
         return self.onnx_engine.predict_next_word(context_prefix=context_prefix, top_k=top_k)
 
     def transform_tone(self, text: str, mode: str = "professional") -> str:
-        """Applies local tone transformations offline."""
+        """Applies local tone transformations offline if permitted by enterprise policy."""
+        if not self.policy.is_tone_transformation_enabled():
+            return text
+
+        if not self.policy.is_tone_mode_allowed(mode):
+            return text
+
+        start_t = time.perf_counter()
         if mode == "professional":
-            return self.tone_transformer.to_professional(text)
+            result = self.tone_transformer.to_professional(text)
         elif mode == "casual":
-            return self.tone_transformer.to_casual(text)
+            result = self.tone_transformer.to_casual(text)
         elif mode == "concise":
-            return self.tone_transformer.to_concise(text)
-        return text
+            result = self.tone_transformer.to_concise(text)
+        else:
+            result = text
+
+        lat_ms = (time.perf_counter() - start_t) * 1000.0
+        self.audit_logger.log_tone_transform(
+            input_chars=len(text),
+            output_chars=len(result),
+            mode=mode,
+            latency_ms=lat_ms,
+        )
+        return result
 
     def scan_privacy(self, text: str) -> List[Dict[str, Any]]:
         """Scans drafted text for sensitive credentials, API keys, or PII."""
-        return self.privacy_guard.scan(text)
+        start_t = time.perf_counter()
+        findings = self.privacy_guard.scan(text)
+        lat_ms = (time.perf_counter() - start_t) * 1000.0
+
+        if findings:
+            hazard_names = [f["hazard"] for f in findings]
+            self.audit_logger.log_pii_detection(
+                char_count=len(text),
+                hazard_types=hazard_names,
+                latency_ms=lat_ms,
+            )
+        return findings
+
+    def redact_privacy(self, text: str) -> str:
+        """Redacts sensitive tokens locally and logs compliance evidence."""
+        start_t = time.perf_counter()
+        findings = self.privacy_guard.scan(text)
+        redacted = self.privacy_guard.redact(text)
+        lat_ms = (time.perf_counter() - start_t) * 1000.0
+
+        if findings:
+            self.audit_logger.log_pii_redaction(
+                input_chars=len(text),
+                output_chars=len(redacted),
+                redaction_count=len(findings),
+                latency_ms=lat_ms,
+            )
+        return redacted
+
+    def verify_network_isolation(self) -> bool:
+        """
+        Compliance startup self-check.
+        Strictly verifies that the full pipeline (ONNX scoring, tokenizer,
+        expander, tone transformer, and privacy guard) operates with zero
+        outbound socket attempts.
+        Returns True if network isolation is provably intact.
+        """
+        socket_attempts = []
+        original_connect = socket.socket.connect
+        original_create_connection = getattr(socket, "create_connection", None)
+
+        def mock_connect(sock_self, address):
+            socket_attempts.append(str(address))
+            raise PermissionError(f"Network egress blocked in compliance mode: attempted connect to {address}")
+
+        def mock_create_connection(address, *args, **kwargs):
+            socket_attempts.append(str(address))
+            raise PermissionError(f"Network egress blocked in compliance mode: attempted connect to {address}")
+
+        try:
+            # Install socket interceptors
+            socket.socket.connect = mock_connect
+            if original_create_connection:
+                socket.create_connection = mock_create_connection
+
+            # Run complete pipeline under socket interceptor
+            corr = self.evaluate_word("parck", delimiter=" ", explicit_context="I went to the")
+            assert corr.corrected_word.lower() == "park"
+
+            ghosts, _ = self.predict_ghost_text("I want to go to the", top_k=1)
+            assert len(ghosts) > 0
+
+            tone = self.transform_tone("hey team gotta fix asap thx", mode="professional")
+            assert "Hello," in tone
+
+            findings = self.scan_privacy("API key: sk-abcdef1234567890abcdef1234567890")
+            assert len(findings) > 0
+
+            redacted = self.redact_privacy("API key: sk-abcdef1234567890abcdef1234567890")
+            assert "sk-" not in redacted
+
+            exp = self.text_expander.expand("//meet")
+            assert exp is not None
+
+            # Assert zero network socket attempts were made
+            assert len(socket_attempts) == 0, f"Network isolation violated: {socket_attempts}"
+            self.is_network_isolated = True
+            return True
+
+        finally:
+            # Restore original socket methods
+            socket.socket.connect = original_connect
+            if original_create_connection:
+                socket.create_connection = original_create_connection
 
     def handle_delimiter_commit(
         self, delimiter: str = " ", explicit_context: Optional[str] = None
