@@ -243,17 +243,8 @@ class AutocorrectService:
             )
 
         is_known = self.candidate_generator.is_valid_word(clean_word)
-        is_homophone = clean_word in self.candidate_generator.homophone_clusters
-
-        if is_homophone:
-            # Explicit confusable homophone pairs (meat/meet, peace/piece, there/their)
-            required_threshold = self.confidence_threshold
-        elif is_known:
-            # Regular correctly-spelled dictionary words require overwhelming confidence (>=0.85)
-            required_threshold = max(self.confidence_threshold, 0.85)
-        else:
-            # Clear misspelled typos require only low confidence
-            required_threshold = 0.25
+        # Real valid words require high confidence (>=0.85) to mutate; typos require only >=0.25
+        required_threshold = max(self.confidence_threshold, 0.85) if is_known else 0.25
 
         if top_prob >= required_threshold:
             # Trigger Correction & Arm Undo

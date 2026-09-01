@@ -27,5 +27,6 @@ audit_logs/*.jsonl
 # Build & Packaging Artifacts
 dist/
 build/
+release/
 *.spec
 
