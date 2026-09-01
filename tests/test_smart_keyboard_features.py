@@ -105,3 +105,38 @@ def test_compliance_audit_logging(service):
     assert len(recent) > 0
     assert recent[0]["network_status"] == "AIR_GAPPED"
 
+
+def test_manual_backspace_override_suppression(service):
+    """
+    Verifies that when a user backspaces into an autocorrected word and re-types it,
+    the word is NOT autocorrected again on the second commit.
+    """
+    service.reset()
+    for w in "I went to the".split():
+        for c in w:
+            service.feed_character(c)
+        service.handle_delimiter_commit(" ")
+
+    # 1. First commit -> corrected
+    for c in "parck":
+        service.feed_character(c)
+    committed, res1 = service.handle_delimiter_commit(" ")
+    assert res1.is_corrected is True
+    assert res1.corrected_word == "park"
+
+    # 2. User backspaces the delimiter and part of the word
+    service.feed_backspace()  # Space
+    service.feed_backspace()  # 'k'
+    service.feed_backspace()  # 'r'
+    service.feed_backspace()  # 'a'
+
+    # 3. User re-types 'arck'
+    for c in "arck":
+        service.feed_character(c)
+
+    # 4. Second commit -> preserved, no second correction
+    committed2, res2 = service.handle_delimiter_commit(" ")
+    assert res2.is_corrected is False
+    assert res2.corrected_word == "parck"
+
+

@@ -7,7 +7,7 @@ TextExpander, ToneTransformer, PrivacyGuard, and ComplianceAuditLogger.
 import time
 import socket
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any, List, Set
 from .context_buffer import ContextBuffer
 from .candidate_generator import CandidateGenerator
 from .onnx_infer import OnnxInferenceEngine
@@ -102,6 +102,10 @@ class AutocorrectService:
         )
         self.is_network_isolated: bool = False
 
+        # Manual backspace override state
+        self.manual_override_active: bool = False
+        self.suppressed_override_word: Optional[str] = None
+
         if verify_isolation_on_startup:
             self.verify_network_isolation()
 
@@ -114,6 +118,21 @@ class AutocorrectService:
         """
         clean_word = word.strip()
         hardware = self.onnx_engine.active_provider
+
+        # 0. Manual Backspace Override Check:
+        # If the user backspaced into a corrected word and is retyping it,
+        # strictly preserve what the user typed and do not autocorrect a second time.
+        if self.manual_override_active:
+            return CorrectionResult(
+                is_corrected=False,
+                original_word=word,
+                corrected_word=word,
+                delimiter=delimiter,
+                confidence=1.0,
+                latency_ms=0.01,
+                device=hardware,
+                explanation=f"User manual override preserved: '{clean_word}'",
+            )
 
         # 1. Text Expander Fast-Path (e.g. //meet, //email, //today)
         if self.text_expander.is_trigger(clean_word):
@@ -442,6 +461,7 @@ class AutocorrectService:
         self.context_buffer.current_word_chars.clear()
 
         if not raw_word:
+            self.manual_override_active = False
             return "", CorrectionResult(
                 is_corrected=False,
                 original_word="",
@@ -456,6 +476,9 @@ class AutocorrectService:
         res = self.evaluate_word(raw_word, delimiter, explicit_context=explicit_context)
         final_word = res.corrected_word if res.is_corrected else raw_word
         self.context_buffer.history.append(final_word)
+
+        # Reset active manual override mode for the next word
+        self.manual_override_active = False
 
         return raw_word, res
 
@@ -474,10 +497,17 @@ class AutocorrectService:
         self.undo_manager.invalidate()
 
     def feed_backspace(self) -> Optional[str]:
-        """User pressed Backspace: remove last character."""
+        """User pressed Backspace: remove last character and detect manual correction override."""
+        if self.undo_manager.can_revert():
+            # User is backspacing right after a correction was made!
+            self.manual_override_active = True
+            self.suppressed_override_word = self.undo_manager.original_word.lower().strip()
+
         return self.context_buffer.pop_char()
 
     def reset(self) -> None:
         """Resets all internal buffers and undo state."""
         self.context_buffer.clear()
         self.undo_manager.invalidate()
+        self.manual_override_active = False
+        self.suppressed_override_word = None
