@@ -6,6 +6,7 @@ TextExpander, ToneTransformer, PrivacyGuard, and ComplianceAuditLogger.
 
 import time
 import socket
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any, List, Set
 from .context_buffer import ContextBuffer
@@ -177,6 +178,19 @@ class AutocorrectService:
                 explanation="Syntax guarded (Code/Number/Acronym)",
             )
 
+        # 2b. Proper Noun Guard (Skip capitalized names, brands, and entities in mid-sentence)
+        if self.is_proper_noun_in_context(clean_word, explicit_context=explicit_context):
+            return CorrectionResult(
+                is_corrected=False,
+                original_word=word,
+                corrected_word=word,
+                delimiter=delimiter,
+                confidence=1.0,
+                latency_ms=0.01,
+                device=hardware,
+                explanation=f"Proper noun preserved: '{clean_word}'",
+            )
+
         # 3. Check if word is unambiguous high-frequency dictionary word
         if self.candidate_generator.is_valid_high_frequency_word(clean_word):
             return CorrectionResult(
@@ -331,6 +345,43 @@ class AutocorrectService:
                 device=hardware,
                 explanation=f"Below confidence threshold ({top_prob:.1%} < {required_threshold:.1%})",
             )
+
+    def is_proper_noun_in_context(
+        self, raw_word: str, explicit_context: Optional[str] = None
+    ) -> bool:
+        """
+        Determines if a capitalized word is a proper noun (e.g. 'Mohit', 'BillDesk', 'Paris', 'Google')
+        that should strictly avoid autocorrection.
+        """
+        if not raw_word or not raw_word[0].isupper():
+            return False
+
+        # If it has internal uppercase (e.g. BillDesk, PyTorch, iPhone, McDonald) -> Always proper noun
+        if re.search(r"[a-z][A-Z]", raw_word) or (
+            len(raw_word) > 2 and any(c.isupper() for c in raw_word[1:])
+        ):
+            return True
+
+        # If it is a known contraction (like "I'm", "I'll", "I'd"), allow contraction handling
+        if raw_word.lower() in self.candidate_generator.contractions:
+            return False
+
+        # Check if we are in the middle of a sentence (not immediately following a sentence-ender . ! ? or start of text)
+        if explicit_context is not None:
+            ctx_trimmed = explicit_context.strip()
+            if not ctx_trimmed:
+                return False  # Start of sentence / document
+            # If context does not end in sentence terminator (. ! ? \n), this capitalized word is mid-sentence!
+            if ctx_trimmed[-1] not in (".", "!", "?", "\n"):
+                return True
+        else:
+            history = self.context_buffer.history
+            if history:
+                last_word = history[-1].strip()
+                if last_word and last_word[-1] not in (".", "!", "?", "\n"):
+                    return True
+
+        return False
 
     def predict_ghost_text(self, context_prefix: str, top_k: int = 1) -> Tuple[List[str], float]:
         """Predicts the next word(s) in context for inline Ghost Text."""
