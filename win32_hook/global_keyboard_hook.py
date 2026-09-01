@@ -108,7 +108,7 @@ class GlobalAutocorrectHook:
         if not self.is_enabled:
             return
 
-        # 3. Handle TAB (Revert Trigger)
+        # 3. Handle TAB fallback
         if key == Key.tab:
             revert = self.service.handle_tab_revert()
             if revert:
@@ -116,6 +116,16 @@ class GlobalAutocorrectHook:
                 print(f"[REVERT] Restoring '{corrected}' -> '{original}'", flush=True)
                 self._dispatch_revert(corrected, original, delim)
             return
+
+        # 3b. Support Ctrl+Z for instant undo
+        if self.ctrl_pressed and hasattr(key, "char") and key.char and key.char.lower() == "z":
+            if self.service.undo_manager.can_revert():
+                revert = self.service.handle_tab_revert()
+                if revert:
+                    corrected, original, delim = revert
+                    print(f"[REVERT] Restoring '{corrected}' -> '{original}' (Ctrl+Z triggered)", flush=True)
+                    self._dispatch_revert(corrected, original, delim)
+                return
 
         # 4. Handle Backspace
         if key == Key.backspace:
@@ -155,6 +165,28 @@ class GlobalAutocorrectHook:
             self.ctrl_pressed = False
         if key in (Key.alt, Key.alt_l, Key.alt_r, Key.alt_gr):
             self.alt_pressed = False
+
+    def win32_event_filter(self, msg, data):
+        """
+        Windows Low-Level Keyboard Event Filter (WH_KEYBOARD_LL).
+        Intercepts and suppresses keys at the OS driver level before applications receive them.
+        When Tab is pressed while an autocorrect revert is armed, we swallow the Tab key
+        so the foreground application (Chrome, Notepad, MS Word) does NOT shift focus, insert tabs, or navigate.
+        """
+        # data.vkCode 0x09 is VK_TAB
+        # msg 256 is WM_KEYDOWN, 260 is WM_SYSKEYDOWN
+        if data.vkCode == 0x09:
+            if self.service.undo_manager.can_revert():
+                if msg in (256, 260):
+                    revert = self.service.handle_tab_revert()
+                    if revert:
+                        corrected, original, delim = revert
+                        print(f"[REVERT] Restoring '{corrected}' -> '{original}' (Tab intercepted & suppressed)", flush=True)
+                        self._dispatch_revert(corrected, original, delim)
+                # Suppress the Tab key from Windows OS event queue
+                return False
+
+        return True
 
     def _handle_delimiter(self, delimiter: str):
         committed_word, result = self.service.handle_delimiter_commit(delimiter)
@@ -202,7 +234,11 @@ class GlobalAutocorrectHook:
         print(f"\n[STATUS] Global Hook Active across Windows.", flush=True)
         print(f"[STATUS] Hardware Acceleration: {self.service.onnx_engine.active_provider}", flush=True)
         print(f"[READY] Type in any application (Notepad, Word, Chrome). Try: 'went to the parck '\n", flush=True)
-        with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
+        with keyboard.Listener(
+            on_press=self.on_press,
+            on_release=self.on_release,
+            win32_event_filter=self.win32_event_filter,
+        ) as listener:
             listener.join()
 
 
@@ -213,3 +249,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
