@@ -1,6 +1,6 @@
 """
 Model Exporter and INT8 Quantizer for Lightweight On-Device Autocorrect.
-Downloads google/bert_uncased_L-2_H-128_A-2 (4.4M params), exports to ONNX
+Downloads google/bert_uncased_L-8_H-256_A-4 (16.0M params, 8 layers), exports to ONNX
 with dynamic shapes, and applies dynamic INT8 quantization for ultra-fast NPU/CPU execution.
 """
 
@@ -20,7 +20,7 @@ from onnxruntime.quantization import quantize_dynamic, QuantType
 
 def export_and_quantize():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    model_name = "google/bert_uncased_L-4_H-256_A-4"
+    model_name = "google/bert_uncased_L-8_H-256_A-4"
     onnx_fp32_path = os.path.join(base_dir, "corrector_model_fp32.onnx")
     onnx_int8_path = os.path.join(base_dir, "corrector_model_quant.onnx")
     tokenizer_dir = os.path.join(base_dir, "tokenizer")
