@@ -125,6 +125,14 @@ class CandidateGenerator:
             "fonetic": "phonetic",
             "pare": "pair",
             "nowt": "not",
+            "hvae": "have",
+            "woudl": "would",
+            "shoudl": "should",
+            "becuase": "because",
+            "teh": "the",
+            "thier": "their",
+            "lenght": "length",
+            "whcih": "which",
         }
 
         # Homophones and Real-Word Confusable Clusters
@@ -267,17 +275,13 @@ class CandidateGenerator:
             candidates_map[clean] = (self.sym_spell.words[clean], 0)
 
         # Sort priority:
-        # 1. Homophone cluster counterparts (always evaluated)
-        # 2. Edit distance ascending (closest first)
-        # 3. Corpus frequency descending
-        def candidate_rank(item):
-            word, (freq, dist) = item
-            is_cluster = 0 if word in cluster_members else 1
-            return (is_cluster, dist, -freq)
-
+        # 1. Edit distance ascending (closest first)
+        # 2. Corpus frequency descending
         sorted_candidates = [
             (term, freq, dist)
-            for term, (freq, dist) in sorted(candidates_map.items(), key=candidate_rank)
+            for term, (freq, dist) in sorted(
+                candidates_map.items(), key=lambda item: (item[1][1], -item[1][0])
+            )
         ]
         return sorted_candidates[:max_candidates]
 

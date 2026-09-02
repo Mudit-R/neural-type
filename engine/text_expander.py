@@ -22,6 +22,7 @@ class TextExpander:
             "//followup": "Hi team,\nFollowing up on our discussion yesterday. Please find the action items and next steps outlined below.",
             "//today": "{date}",
             "//zoom": "Join Zoom Meeting: https://zoom.us/j/1234567890 (Passcode: 102030)",
+            "//sig": "Best regards,\nAlex Morgan",
             "//intro": "Hi there,\nMy name is Alex, and I lead the on-device AI engineering team. Pleased to connect with you.",
             "//shrug": "¯\\_(ツ)_/¯",
         }
