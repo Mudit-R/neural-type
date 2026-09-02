@@ -18,11 +18,12 @@ def service():
     return AutocorrectService()
 
 
-def test_ghost_text_prediction(service):
-    preds, lat = service.predict_ghost_text("I want to go to the", top_k=3)
-    assert len(preds) > 0
-    assert lat < 15.0
-    print(f"\n[Test] Ghost Text Prediction for 'I want to go to the': {preds} ({lat:.2f}ms)")
+def test_contextual_autocorrect_accuracy(service):
+    res = service.evaluate_word("parck", explicit_context="went to the")
+    assert res.is_corrected is True
+    assert res.corrected_word == "park"
+    assert res.confidence >= 0.90
+    print(f"\n[Test] Contextual Correction: '{res.original_word}' -> '{res.corrected_word}' ({res.confidence:.1%}, {res.latency_ms:.2f}ms)")
 
 
 def test_text_expander():

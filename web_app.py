@@ -194,24 +194,6 @@ HTML_PAGE = """<!DOCTYPE html>
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
 
-        .ghost-bar {
-            background: rgba(15, 17, 24, 0.7);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 0.5rem 0.85rem;
-            font-size: 0.82rem;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .ghost-preview {
-            color: #60a5fa;
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 500;
-        }
-
         .revert-indicator {
             padding: 0.65rem 1rem;
             border-radius: 10px;
@@ -371,12 +353,6 @@ HTML_PAGE = """<!DOCTYPE html>
             <textarea id="editor" placeholder="Type sentences (e.g. 'I will meat you at the' or '//meet' or 'I went to the parck')..."></textarea>
         </div>
 
-        <!-- Ghost Text Suggestion Bar -->
-        <div class="ghost-bar" id="ghostBar">
-            <span>Next-Word Ghost Prediction: <span class="ghost-preview" id="ghostText">--</span></span>
-            <span>Press <kbd>Right Arrow</kbd> to autocomplete</span>
-        </div>
-
         <!-- Privacy Alert Pill -->
         <div class="privacy-alert" id="privacyAlert">
             <span id="privacyMsg">[PRIVACY ALERT] Potential confidential credential or token detected.</span>
@@ -430,14 +406,12 @@ HTML_PAGE = """<!DOCTYPE html>
     const logList = document.getElementById('logList');
     const hwName = document.getElementById('hwName');
     const hwBadge = document.getElementById('hwBadge');
-    const ghostText = document.getElementById('ghostText');
     const privacyAlert = document.getElementById('privacyAlert');
 
     let totalCorrections = 0;
     let totalReverts = 0;
     let undoArmed = false;
     let undoTimer = null;
-    let currentGhostPrediction = '';
 
     // Load initial hardware status
     fetch('/api/status')
@@ -449,24 +423,7 @@ HTML_PAGE = """<!DOCTYPE html>
         });
 
     editor.addEventListener('keydown', async (e) => {
-        // 1. Right Arrow or Tab (when not undoing) accepts Ghost Text
-        if (e.key === 'ArrowRight' && currentGhostPrediction) {
-            e.preventDefault();
-            const pos = editor.selectionStart;
-            const text = editor.value;
-            const before = text.substring(0, pos);
-            const after = text.substring(pos);
-            const needsSpace = before.length > 0 && !before.endsWith(' ');
-            const insertText = (needsSpace ? ' ' : '') + currentGhostPrediction + ' ';
-            editor.value = before + insertText + after;
-            editor.selectionStart = editor.selectionEnd = before.length + insertText.length;
-            addLog(`Ghost autocomplete accepted: <span class="highlight">'${currentGhostPrediction}'</span>`);
-            currentGhostPrediction = '';
-            ghostText.textContent = '--';
-            return;
-        }
-
-        // 2. Handle TAB Revert
+        // 1. Handle TAB Revert
         if (e.key === 'Tab') {
             e.preventDefault();
             if (undoArmed) {
@@ -488,24 +445,11 @@ HTML_PAGE = """<!DOCTYPE html>
                     disarmUndo();
                     addLog(`Restored '${data.corrected}' -> '${data.original}' via [TAB]`, 'reverted');
                 }
-            } else if (currentGhostPrediction) {
-                // If no undo active, Tab accepts Ghost Text
-                const pos = editor.selectionStart;
-                const text = editor.value;
-                const before = text.substring(0, pos);
-                const after = text.substring(pos);
-                const needsSpace = before.length > 0 && !before.endsWith(' ');
-                const insertText = (needsSpace ? ' ' : '') + currentGhostPrediction + ' ';
-                editor.value = before + insertText + after;
-                editor.selectionStart = editor.selectionEnd = before.length + insertText.length;
-                addLog(`Ghost autocomplete accepted: <span class="highlight">'${currentGhostPrediction}'</span>`);
-                currentGhostPrediction = '';
-                ghostText.textContent = '--';
             }
             return;
         }
 
-        // 3. Handle Space / Delimiters for Autocorrect & Snippets
+        // 2. Handle Space / Delimiters for Autocorrect & Snippets
         if (e.key === ' ' || e.key === 'Enter' || e.key === '.' || e.key === ',' || e.key === '!' || e.key === '?') {
             const delim = e.key === 'Enter' ? '\\n' : e.key;
             const text = editor.value;
@@ -550,9 +494,6 @@ HTML_PAGE = """<!DOCTYPE html>
                             addLog(`Corrected: <span class="highlight">'${result.original_word}' -> '${result.corrected_word}'</span> <span class="latency">(${result.latency_ms.toFixed(2)}ms, ${(result.confidence * 100).toFixed(1)}%)</span>`);
                         }
                     }
-
-                    // Trigger Next-Word Ghost Prediction
-                    updateGhostPrediction();
                 });
             }
         }
@@ -560,34 +501,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     editor.addEventListener('input', () => {
         scanPrivacy();
-        updateGhostPrediction();
     });
-
-    function updateGhostPrediction() {
-        const text = editor.value;
-        const pos = editor.selectionStart;
-        const beforeCursor = text.substring(0, pos).trim();
-
-        if (beforeCursor.length > 3) {
-            fetch('/api/predict_ghost', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ context: beforeCursor })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.predictions && data.predictions.length > 0) {
-                    currentGhostPrediction = data.predictions[0];
-                    ghostText.textContent = currentGhostPrediction;
-                } else {
-                    currentGhostPrediction = '';
-                    ghostText.textContent = '--';
-                }
-            });
-        } else {
-            currentGhostPrediction = '';
-            ghostText.textContent = '--';
-        }
     }
 
     function scanPrivacy() {
@@ -775,10 +689,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                 "explanation": res.explanation,
                 "is_expansion": res.is_expansion,
             })
-        elif self.path == "/api/predict_ghost":
-            ctx = req_data.get("context", "")
-            predictions, lat = service.predict_ghost_text(ctx, top_k=1)
-            self._send_json({"predictions": predictions, "latency_ms": lat})
         elif self.path == "/api/transform_tone":
             text = req_data.get("text", "")
             mode = req_data.get("mode", "professional")

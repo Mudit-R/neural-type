@@ -165,7 +165,7 @@ class OnnxInferenceEngine:
                 neural_logit = -50.0
 
             freq_prior = math.log(max(1, freq) + 1.0)
-            composite_score = neural_logit + 0.85 * freq_prior - 2.0 * dist
+            composite_score = neural_logit + 0.40 * freq_prior - 2.0 * dist
             candidate_composite_scores.append((cand_word, composite_score))
 
         # Softmax over candidate pool

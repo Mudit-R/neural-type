@@ -123,6 +123,8 @@ class CandidateGenerator:
             "feild": "field",
             "parck": "park",
             "fonetic": "phonetic",
+            "pare": "pair",
+            "nowt": "not",
         }
 
         # Homophones and Real-Word Confusable Clusters
@@ -241,15 +243,17 @@ class CandidateGenerator:
 
         # 3. Check Homophone and Real-Word Confusable Clusters
         if clean in self.homophone_clusters:
+            cluster_cands = []
             for member in self.homophone_clusters[clean]:
-                freq = self.sym_spell.words.get(member, 1_000_000)
+                freq = self.sym_spell.words.get(member, 1000)
                 dist = 0 if member == clean else 1
-                candidates_map[member] = (freq, dist)
+                cluster_cands.append((member, freq, dist))
+            return cluster_cands
 
-        # 4. Lookup in SymSpell (distance 1 & 2)
+        # 4. Lookup in SymSpell (distance 1 & 2 across all dictionary alternatives)
         suggestions = self.sym_spell.lookup(
             clean,
-            Verbosity.CLOSEST,
+            Verbosity.ALL,
             max_edit_distance=self.max_edit_distance,
             include_unknown=False,
         )
@@ -262,12 +266,18 @@ class CandidateGenerator:
         if clean in self.sym_spell.words and clean not in candidates_map:
             candidates_map[clean] = (self.sym_spell.words[clean], 0)
 
-        # Sort by frequency descending and format
+        # Sort priority:
+        # 1. Homophone cluster counterparts (always evaluated)
+        # 2. Edit distance ascending (closest first)
+        # 3. Corpus frequency descending
+        def candidate_rank(item):
+            word, (freq, dist) = item
+            is_cluster = 0 if word in cluster_members else 1
+            return (is_cluster, dist, -freq)
+
         sorted_candidates = [
             (term, freq, dist)
-            for term, (freq, dist) in sorted(
-                candidates_map.items(), key=lambda item: item[1][0], reverse=True
-            )
+            for term, (freq, dist) in sorted(candidates_map.items(), key=candidate_rank)
         ]
         return sorted_candidates[:max_candidates]
 
