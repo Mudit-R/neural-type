@@ -33,6 +33,7 @@ class GlobalAutocorrectHook:
         print("  NEURATYPE - AI-POWERED LOCAL LIVE AUTOCORRECT", flush=True)
         print("=" * 60, flush=True)
         print(f"  * Active Confidence Filter : {self.service.confidence_threshold:.1%}", flush=True)
+        print(f"  * Loaded Policy Config     : {self.policy.config_path}", flush=True)
         print("  Controls:", flush=True)
         print("    [Ctrl + Alt + A] : Toggle Global Autocorrect ON / OFF", flush=True)
         print("    [Ctrl + Alt + Q] : Emergency Exit / Stop Service", flush=True)
@@ -258,7 +259,7 @@ def main():
         "-c", "--confidence", "--confidence-threshold", "--conf",
         type=float,
         default=None,
-        help="Confidence filter threshold (e.g. 0.95, 95, 0.90, 80). Defaults to 95% (policy.yaml).",
+        help="Confidence filter threshold (e.g. 0.95, 95, 0.90, 80). Defaults to policy.yaml value.",
     )
     args, _ = parser.parse_known_args()
 

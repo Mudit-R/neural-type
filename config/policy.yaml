@@ -126,6 +126,6 @@ audit_logging:
 # 5. Autocorrect Engine Tuning
 # ------------------------------------------------------------------------------
 autocorrect:
-  confidence_threshold: 0.95
+  confidence_threshold: 0.90
   revert_timeout_seconds: 3.5
   max_edit_distance: 2

@@ -92,25 +92,33 @@ class PolicyConfig:
             if os.path.exists(enterprise_cfg):
                 return enterprise_cfg
 
-        # 2. Check bundled frozen path if running as compiled binary
+        # 2. Check directory containing executable (user-customized config/policy.yaml)
         if getattr(sys, "frozen", False):
-            candidate_dirs = [
-                getattr(sys, "_MEIPASS", ""),
-                os.path.join(getattr(sys, "_MEIPASS", ""), "_internal"),
-                os.path.dirname(sys.executable),
-                os.path.join(os.path.dirname(sys.executable), "_internal"),
-            ]
-            for c in candidate_dirs:
+            exe_dir = os.path.dirname(sys.executable)
+            for c in [exe_dir, os.path.join(exe_dir, "_internal")]:
                 if c:
                     cfg = os.path.join(c, "config", "policy.yaml")
                     if os.path.exists(cfg):
                         return cfg
 
-        # 3. Check workspace config/policy.yaml
+        # 3. Check current working directory config/policy.yaml
+        cwd_cfg = os.path.join(os.getcwd(), "config", "policy.yaml")
+        if os.path.exists(cwd_cfg):
+            return cwd_cfg
+
+        # 4. Check workspace config/policy.yaml
         workspace_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         workspace_cfg = os.path.join(workspace_dir, "config", "policy.yaml")
         if os.path.exists(workspace_cfg):
             return workspace_cfg
+
+        # 5. Fallback to frozen bundle _MEIPASS
+        if getattr(sys, "frozen", False):
+            meipass = getattr(sys, "_MEIPASS", "")
+            if meipass:
+                cfg = os.path.join(meipass, "config", "policy.yaml")
+                if os.path.exists(cfg):
+                    return cfg
 
         return workspace_cfg
 

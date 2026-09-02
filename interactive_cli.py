@@ -67,7 +67,7 @@ def main():
         "-c", "--confidence", "--conf",
         type=float,
         default=None,
-        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to 95%.",
+        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to policy.yaml value.",
     )
     args, _ = parser.parse_known_args()
 
