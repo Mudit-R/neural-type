@@ -21,7 +21,7 @@ def run_demo():
     print("  [AI-POWERED LOCAL LIVE AUTOCORRECT - INTERACTIVE DEMO]")
     print("=" * 70)
 
-    service = AutocorrectService(confidence_threshold=0.60, revert_timeout=3.5)
+    service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
     hw = service.onnx_engine.get_hardware_info()
 
     print(f"  * Hardware Engine: {hw['active_provider']} ({'NPU/GPU' if hw['is_npu_or_gpu'] else 'CPU AVX2'})")

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine.autocorrect_service import AutocorrectService
 
 # Global service instance
-service = AutocorrectService(confidence_threshold=0.55, revert_timeout=3.5)
+service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
 hw_info = service.onnx_engine.get_hardware_info()
 
 HTML_PAGE = """<!DOCTYPE html>

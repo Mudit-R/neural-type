@@ -22,7 +22,7 @@ from engine.autocorrect_service import AutocorrectService
 
 
 def run_investor_benchmarks():
-    service = AutocorrectService(confidence_threshold=0.55, revert_timeout=3.5)
+    service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
     hw = service.onnx_engine.get_hardware_info()
 
     print("=" * 80)

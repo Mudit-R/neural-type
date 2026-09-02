@@ -24,7 +24,7 @@ class AutocorrectSandboxGUI:
         self.root.configure(bg="#121214")
 
         # Initialize Autocorrect Engine
-        self.service = AutocorrectService(confidence_threshold=0.55, revert_timeout=3.5)
+        self.service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
         self.hw_info = self.service.onnx_engine.get_hardware_info()
 
         # Stats

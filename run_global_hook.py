@@ -1,5 +1,5 @@
 """
-Neural-Type: Enterprise Global Keyboard Hook Entry Point.
+NeuraType: Enterprise Global Keyboard Hook Entry Point.
 """
 
 import os

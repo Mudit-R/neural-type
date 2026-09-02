@@ -302,8 +302,8 @@ class AutocorrectService:
             )
 
         is_known = self.candidate_generator.is_valid_word(clean_word)
-        # Real valid words require high confidence (>=0.85) to mutate; typos require only >=0.25
-        required_threshold = max(self.confidence_threshold, 0.85) if is_known else 0.25
+        # Real valid words require high confidence (>=0.85 or configured threshold) to mutate; typos require configured threshold
+        required_threshold = max(self.confidence_threshold, 0.85) if is_known else self.confidence_threshold
 
         if top_prob >= required_threshold:
             # Trigger Correction & Arm Undo

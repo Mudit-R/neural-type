@@ -16,6 +16,7 @@ def test_default_policy_structure():
     assert config.is_hook_enabled() is True
     assert config.is_privacy_guard_enabled() is True
     assert config.is_tone_transformation_enabled() is True
+    assert config.get_autocorrect_settings()["confidence_threshold"] == 0.95
 
     audit_settings = config.get_audit_settings()
     assert audit_settings["retention_days"] == 90

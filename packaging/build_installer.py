@@ -1,5 +1,5 @@
 """
-Enterprise Packaging & Installer Build Automation for Neural-Type.
+Enterprise Packaging & Installer Build Automation for NeuraType.
 Validates dependencies, ONNX model assets, enterprise policies, and
 generates standalone Windows executable/MSI installer bundles.
 """
@@ -23,7 +23,7 @@ def calculate_sha256(filepath: str) -> str:
 def validate_packaging_prerequisites(workspace_root: Path) -> bool:
     """Checks that all essential runtime assets and models are present."""
     print("=" * 60)
-    print("  NEURAL-TYPE ENTERPRISE PACKAGING VERIFICATION")
+    print("  NEURATYPE ENTERPRISE PACKAGING VERIFICATION")
     print("=" * 60)
 
     required_assets = [
@@ -51,14 +51,14 @@ def validate_packaging_prerequisites(workspace_root: Path) -> bool:
 def generate_nsis_script(workspace_root: Path, output_dir: Path) -> Path:
     """Generates standard NSIS installer script supporting silent deployment (/S)."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    nsis_script_path = output_dir / "NeuralTypeSetup.nsi"
+    nsis_script_path = output_dir / "NeuraTypeSetup.nsi"
 
-    script_content = f"""; Neural-Type Enterprise Installer Script (NSIS)
-; Supports silent deployment: NeuralTypeSetup.exe /S /ALLUSERS=1
-!define PRODUCT_NAME "Neural-Type"
+    script_content = f"""; NeuraType Enterprise Installer Script (NSIS)
+; Supports silent deployment: NeuraTypeSetup.exe /S /ALLUSERS=1
+!define PRODUCT_NAME "NeuraType"
 !define PRODUCT_VERSION "1.0.0"
-!define PRODUCT_PUBLISHER "Neural-Type Technologies Inc."
-!define INSTALL_DIR "$PROGRAMFILES64\\Neural-Type"
+!define PRODUCT_PUBLISHER "NeuraType Technologies Inc."
+!define INSTALL_DIR "$PROGRAMFILES64\\NeuraType"
 
 Name "${{PRODUCT_NAME}} ${{PRODUCT_VERSION}}"
 OutFile "${{PRODUCT_NAME}}-Setup-${{PRODUCT_VERSION}}.exe"
@@ -73,8 +73,8 @@ Section "MainSection" SEC01
     File "{workspace_root}\\README.md"
 
     ; Set default ProgramData policy
-    CreateDirectory "$COMMONAPPDATA\\NeuralType"
-    CopyFiles "$INSTDIR\\config\\policy.yaml" "$COMMONAPPDATA\\NeuralType\\policy.yaml"
+    CreateDirectory "$COMMONAPPDATA\\NeuraType"
+    CopyFiles "$INSTDIR\\config\\policy.yaml" "$COMMONAPPDATA\\NeuraType\\policy.yaml"
 
     ; Register uninstaller
     WriteUninstaller "$INSTDIR\\uninstall.exe"
@@ -104,7 +104,7 @@ SectionEnd
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build and package Neural-Type for enterprise deployment.")
+    parser = argparse.ArgumentParser(description="Build and package NeuraType for enterprise deployment.")
     parser.add_argument("--dry-run", action="store_true", help="Validate assets and generate scripts without compiling binary.")
     parser.add_argument("--sign", action="store_true", help="Sign generated executable using signtool.exe.")
     args = parser.parse_args()
@@ -123,7 +123,7 @@ def main():
     print("=" * 60)
     print("  Silent Install Flag   : /S")
     print("  All Users Switch      : /ALLUSERS=1")
-    print("  Default Policy Path   : %ProgramData%\\NeuralType\\policy.yaml")
+    print("  Default Policy Path   : %ProgramData%\\NeuraType\\policy.yaml")
     print("  Intune Packaging Tool : IntuneWinAppUtil.exe")
     print("=" * 60)
 

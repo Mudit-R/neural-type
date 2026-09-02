@@ -1,7 +1,7 @@
 """
 Automated Proof of Network Isolation & Zero Outbound Data Egress.
 Simulates an air-gapped, zero-connectivity environment at the OS/socket level
-and verifies that Neural-Type operates with 100% functionality and 0 outbound calls.
+and verifies that NeuraType operates with 100% functionality and 0 outbound calls.
 """
 
 import os
@@ -35,13 +35,13 @@ def test_startup_isolation_self_check(airgap_service):
 def test_complete_pipeline_under_socket_lockdown(tmp_path, monkeypatch):
     """
     Blocks all network connections at socket and HTTP client levels.
-    Verifies that all Neural-Type capabilities work offline with zero egress.
+    Verifies that all NeuraType capabilities work offline with zero egress.
     """
     call_log = []
 
     def forbidden_connect(*args, **kwargs):
         call_log.append(("connect", args))
-        raise PermissionError("Egress forbidden: Neural-Type operates strictly air-gapped.")
+        raise PermissionError("Egress forbidden: NeuraType operates strictly air-gapped.")
 
     # Strict socket intercept
     monkeypatch.setattr(socket.socket, "connect", forbidden_connect)

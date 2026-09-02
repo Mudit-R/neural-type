@@ -1,5 +1,5 @@
 """
-Centralized Policy Configuration Loader for Neural-Type Enterprise Deployments.
+Centralized Policy Configuration Loader for NeuraType Enterprise Deployments.
 Loads and validates enterprise policies from config/policy.yaml or system-level paths.
 """
 
@@ -15,48 +15,42 @@ except ImportError:
 
 
 DEFAULT_POLICY: Dict[str, Any] = {
-    "version": "1.0",
     "hook": {
         "enabled": True,
-        "hotkey_toggle": "ctrl+alt+a",
-        "emergency_kill": "ctrl+alt+q",
-        "revert_hotkey": "tab",
-        "allowlist": [],
+        "toggle_hotkey": "<ctrl>+<alt>+a",
+        "kill_hotkey": "<ctrl>+<alt>+q",
+        "revert_key": "tab",
         "denylist": [
             "1password.exe",
-            "keepass.exe",
             "bitwarden.exe",
+            "keepass.exe",
             "lastpass.exe",
             "cmd.exe",
             "powershell.exe",
-            "powershell_ise.exe",
+            "pwsh.exe",
             "wt.exe",
-            "conhost.exe",
+            "bash.exe",
+            "mintty.exe",
             "putty.exe",
-            "mstsc.exe",
         ],
+        "allowlist": [],
     },
     "privacy_guard": {
         "enabled": True,
-        "auto_redact_on_commit": False,
-        "vertical_profile": "all",
+        "vertical_profile": "general",
+        "action": "redact",
         "detectors": {
-            "ai_secret_keys": True,
+            "ssn": True,
+            "credit_card": True,
+            "api_keys": True,
+            "aws_keys": True,
             "github_tokens": True,
-            "aws_access_keys": True,
-            "social_security_numbers": True,
-            "database_uris": True,
-            "credentials_passwords": True,
-            "credit_cards": True,
-            "patient_ids": True,
-            "icd10_diagnosis_codes": True,
-            "medical_record_numbers": True,
-            "case_docket_numbers": True,
-            "privileged_phrases": True,
-            "bank_routing_numbers": True,
-            "bank_account_numbers": True,
-            "swift_bic_codes": True,
-            "iban_numbers": True,
+            "iban": True,
+            "medical_mrn": False,
+            "icd10": False,
+            "case_citation": False,
+            "cusip": False,
+            "swift_bic": False,
         },
     },
     "tone_transformation": {
@@ -72,7 +66,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "enforce_zero_egress": True,
     },
     "autocorrect": {
-        "confidence_threshold": 0.55,
+        "confidence_threshold": 0.95,
         "revert_timeout_seconds": 3.5,
         "max_edit_distance": 2,
     },
@@ -93,9 +87,10 @@ class PolicyConfig:
         """Finds policy file from workspace config, bundle, or system ProgramData."""
         # 1. Check Windows ProgramData (standard Intune/GPO deployment directory)
         program_data = os.environ.get("ProgramData", r"C:\ProgramData")
-        enterprise_cfg = os.path.join(program_data, "NeuralType", "policy.yaml")
-        if os.path.exists(enterprise_cfg):
-            return enterprise_cfg
+        for candidate_name in ["NeuraType", "NeuralType"]:
+            enterprise_cfg = os.path.join(program_data, candidate_name, "policy.yaml")
+            if os.path.exists(enterprise_cfg):
+                return enterprise_cfg
 
         # 2. Check bundled frozen path if running as compiled binary
         if getattr(sys, "frozen", False):
@@ -219,7 +214,7 @@ class PolicyConfig:
         """Returns core engine hyperparameters."""
         cfg = self.policy.get("autocorrect", {})
         return {
-            "confidence_threshold": float(cfg.get("confidence_threshold", 0.55)),
+            "confidence_threshold": float(cfg.get("confidence_threshold", 0.95)),
             "revert_timeout_seconds": float(cfg.get("revert_timeout_seconds", 3.5)),
             "max_edit_distance": int(cfg.get("max_edit_distance", 2)),
         }

@@ -1,9 +1,9 @@
 # ==============================================================================
-# Neural-Type: Enterprise Deployment Policy Configuration
+# NeuraType: Enterprise Deployment Policy Configuration
 # ==============================================================================
-# This configuration file defines standard operating policies for Neural-Type
+# This configuration file defines standard operating policies for NeuraType
 # across enterprise endpoints. It can be distributed via Microsoft Intune, SCCM,
-# or Active Directory Group Policy (GPO) to %ProgramData%\NeuralType\policy.yaml.
+# or Active Directory Group Policy (GPO) to %ProgramData%\NeuraType\policy.yaml.
 # ==============================================================================
 
 version: "1.0"
@@ -126,6 +126,6 @@ audit_logging:
 # 5. Autocorrect Engine Tuning
 # ------------------------------------------------------------------------------
 autocorrect:
-  confidence_threshold: 0.55
+  confidence_threshold: 0.95
   revert_timeout_seconds: 3.5
   max_edit_distance: 2

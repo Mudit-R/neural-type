@@ -61,7 +61,7 @@ def simulate_typing(sentence: str, service: AutocorrectService, should_revert_wo
 
 
 def main():
-    service = AutocorrectService(confidence_threshold=0.60, revert_timeout=3.5)
+    service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
     hw = service.onnx_engine.get_hardware_info()
 
     print("=" * 65)

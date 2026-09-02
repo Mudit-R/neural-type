@@ -28,5 +28,5 @@ audit_logs/*.jsonl
 dist/
 build/
 release/
-*.spec
+!NeuraType.spec
 

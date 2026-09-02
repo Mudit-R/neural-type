@@ -1,6 +1,6 @@
-# Neural-Type: Compliance-Grade Typing Infrastructure for Regulated Enterprises
+# NeuraType: Compliance-Grade Typing Infrastructure for Regulated Enterprises
 
-**Neural-Type** is an ultra-low-latency, 100% on-device typing and contextual correction engine designed for regulated enterprise environments. Engineered to run entirely offline on local hardware—leveraging DirectML (NPU/GPU) and optimized CPU silicon—it guarantees **zero outbound network egress** so sensitive corporate communications, client data, and clinical notes never leave the physical endpoint.
+**NeuraType** is an ultra-low-latency, 100% on-device typing and contextual correction engine designed for regulated enterprise environments. Engineered to run entirely offline on local hardware—leveraging DirectML (NPU/GPU) and optimized CPU silicon—it guarantees **zero outbound network egress** so sensitive corporate communications, client data, and clinical notes never leave the physical endpoint.
 
 ---
 
@@ -8,7 +8,7 @@
 
 Traditional cloud-based AI writing assistants send raw keystrokes and document contents to remote servers, introducing severe data exfiltration liabilities, regulatory non-compliance, and breach of confidentiality.
 
-**Neural-Type eliminates this risk by design:**
+**NeuraType eliminates this risk by design:**
 - **100% Air-Gapped Operation**: No API keys, no telemetry reporting, and zero external socket calls.
 - **Microsecond In-Memory Execution**: Evaluates words and rolling 20-word semantic context locally using an INT8-quantized 8.13 MB neural ONNX model.
 - **Local Compliance Audit Trails**: Generates structured, tamper-evident audit logs (JSONL) recording timestamps, event types, character deltas, and zero-egress proofs without ever logging raw user text.
@@ -18,7 +18,7 @@ Traditional cloud-based AI writing assistants send raw keystrokes and document c
 
 ## Target Regulated Verticals
 
-Neural-Type is purpose-built for industries where confidentiality is mandated by federal statute or fiduciary duty:
+NeuraType is purpose-built for industries where confidentiality is mandated by federal statute or fiduciary duty:
 
 ### 1. Legal & Professional Services
 - **Protects Attorney-Client Privilege**: Guarantees work product, client depositions, and privileged communications are never ingested by third-party model trainers.
@@ -40,9 +40,9 @@ Neural-Type is purpose-built for industries where confidentiality is mandated by
 
 ## Compliance & Audit Framework Support
 
-Neural-Type is architected to support enterprise compliance teams in meeting stringent regulatory standards. *(Note: Neural-Type provides technical controls designed to support compliance; institutional certification depends on organizational environment implementation).*
+NeuraType is architected to support enterprise compliance teams in meeting stringent regulatory standards. *(Note: NeuraType provides technical controls designed to support compliance; institutional certification depends on organizational environment implementation).*
 
-| Regulatory Framework | How Neural-Type Supports Compliance |
+| Regulatory Framework | How NeuraType Supports Compliance |
 | :--- | :--- |
 | **HIPAA** (Health Insurance Portability and Accountability Act) | Operates entirely on-device; Protected Health Information (PHI) is never transmitted over external networks or stored in third-party clouds. |
 | **SOC 2 Type II** (Privacy & Confidentiality Criteria) | Enforces strict endpoint isolation; no user keystrokes or document fragments exit the boundary of the authorized workstation. |
