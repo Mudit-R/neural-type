@@ -61,13 +61,28 @@ def simulate_typing(sentence: str, service: AutocorrectService, should_revert_wo
 
 
 def main():
-    service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
+    import argparse
+    parser = argparse.ArgumentParser(description="NeuraType CLI Interactive Typing Simulator")
+    parser.add_argument(
+        "-c", "--confidence", "--conf",
+        type=float,
+        default=None,
+        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to 95%.",
+    )
+    args, _ = parser.parse_known_args()
+
+    conf = args.confidence
+    if conf is not None and conf > 1.0:
+        conf = conf / 100.0
+
+    service = AutocorrectService(confidence_threshold=conf, revert_timeout=3.5)
     hw = service.onnx_engine.get_hardware_info()
 
     print("=" * 65)
-    print("  🚀 AI AUTOCORRECT LIVE ENGINE - TEST RUNNER")
+    print("  🚀 NEURATYPE LIVE ENGINE - CLI TEST RUNNER")
     print(f"  ⚡ Hardware Engine: {hw['active_provider']} (CPU/NPU)")
     print(f"  📦 Model Size:      {hw['model_size_mb']:.2f} MB")
+    print(f"  🎯 Confidence Gate: {service.confidence_threshold:.1%}")
     print("=" * 65)
 
     test_sentences = [

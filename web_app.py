@@ -355,7 +355,12 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="tone-btn" onclick="applyTone('casual')">Make Casual</button>
                 <button class="tone-btn" onclick="applyTone('concise')">Make Concise</button>
             </div>
-            <div class="btn-group">
+            <div class="btn-group" style="align-items: center;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.04); padding: 0.25rem 0.65rem; border-radius: 8px; border: 1px solid var(--card-border);">
+                    <span style="font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap;">Filter Conf:</span>
+                    <input type="range" id="confSlider" min="50" max="99" value="95" step="1" oninput="updateConfidence(this.value)" style="accent-color: #3b82f6; cursor: pointer; width: 85px;">
+                    <span id="confDisplay" style="font-size: 0.8rem; font-weight: 700; color: #60a5fa; min-width: 32px;">95%</span>
+                </div>
                 <button class="primary" onclick="loadSnippetDemo()">Demo //meet</button>
                 <button class="primary" onclick="loadRealWordDemo()">Demo meat->meet</button>
                 <button onclick="clearEditor()">Clear</button>
@@ -706,6 +711,19 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         });
     }
+
+    function updateConfidence(val) {
+        document.getElementById('confDisplay').textContent = val + '%';
+        fetch('/api/set_confidence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confidence: parseFloat(val) / 100.0 })
+        })
+        .then(r => r.json())
+        .then(data => {
+            addLog(`Confidence filter adjusted to <span class="highlight">${val}%</span>`);
+        });
+    }
 </script>
 </body>
 </html>
@@ -788,6 +806,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 })
             else:
                 self._send_json({"reverted": False})
+        elif self.path == "/api/set_confidence":
+            val = float(req_data.get("confidence", 0.95))
+            if val > 1.0:
+                val = val / 100.0
+            service.confidence_threshold = val
+            self._send_json({"confidence_threshold": service.confidence_threshold})
         elif self.path == "/api/reset":
             service.reset()
             self._send_json({"status": "reset_complete"})
@@ -798,9 +822,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         pass
 
 
-def run_server(port=8000):
+def run_server(port=8000, confidence_threshold=None):
+    if confidence_threshold is not None:
+        eff = confidence_threshold / 100.0 if confidence_threshold > 1.0 else confidence_threshold
+        service.confidence_threshold = eff
+
     server = HTTPServer(("127.0.0.1", port), RequestHandler)
-    print(f"\n[SERVER] AI Smart Keyboard OS Web Sandbox running at: http://127.0.0.1:{port}")
+    print(f"\n[SERVER] NeuraType Web Sandbox running at: http://127.0.0.1:{port}")
+    print(f"[SERVER] Active Confidence Filter Threshold: {service.confidence_threshold:.1%}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -810,4 +839,14 @@ def run_server(port=8000):
 
 
 if __name__ == "__main__":
-    run_server()
+    import argparse
+    parser = argparse.ArgumentParser(description="NeuraType Local Web Sandbox")
+    parser.add_argument("-p", "--port", type=int, default=8000, help="Port to run web server on (default: 8000)")
+    parser.add_argument(
+        "-c", "--confidence", "--conf",
+        type=float,
+        default=None,
+        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to 95%.",
+    )
+    args, _ = parser.parse_known_args()
+    run_server(port=args.port, confidence_threshold=args.confidence)

@@ -11,9 +11,9 @@ echo     [Tab]            : Undo Last Correction
 echo ============================================================
 echo.
 if exist "NeuraType.exe" (
-    "NeuraType.exe"
+    "NeuraType.exe" %*
 ) else if exist "dist\NeuraType.exe" (
-    "dist\NeuraType.exe"
+    "dist\NeuraType.exe" %*
 ) else (
     echo Error: NeuraType.exe not found.
 )

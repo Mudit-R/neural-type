@@ -18,18 +18,27 @@ from engine.policy_config import PolicyConfig
 
 
 class GlobalAutocorrectHook:
-    def __init__(self, policy: PolicyConfig = None):
+    def __init__(self, policy: PolicyConfig = None, confidence_threshold: float = None):
+        self.policy = policy or PolicyConfig()
+        eff_conf = confidence_threshold
+        if eff_conf is not None and eff_conf > 1.0:
+            eff_conf = eff_conf / 100.0  # Allow passing e.g. 95 or 90
+
+        self.service = AutocorrectService(
+            policy=self.policy,
+            confidence_threshold=eff_conf,
+        )
+
         print("=" * 60, flush=True)
-        print("  AI-POWERED LOCAL LIVE AUTOCORRECT - WINDOWS GLOBAL HOOK", flush=True)
+        print("  NEURATYPE - AI-POWERED LOCAL LIVE AUTOCORRECT", flush=True)
         print("=" * 60, flush=True)
+        print(f"  * Active Confidence Filter : {self.service.confidence_threshold:.1%}", flush=True)
         print("  Controls:", flush=True)
         print("    [Ctrl + Alt + A] : Toggle Global Autocorrect ON / OFF", flush=True)
         print("    [Ctrl + Alt + Q] : Emergency Exit / Stop Service", flush=True)
         print("    [Tab]            : Instant Revert Last Correction", flush=True)
         print("=" * 60, flush=True)
 
-        self.policy = policy or PolicyConfig()
-        self.service = AutocorrectService(policy=self.policy)
         self.keyboard_controller = Controller()
         self.is_enabled = self.policy.is_hook_enabled()
         self.is_running = True
@@ -243,7 +252,17 @@ class GlobalAutocorrectHook:
 
 
 def main():
-    hook = GlobalAutocorrectHook()
+    import argparse
+    parser = argparse.ArgumentParser(description="NeuraType - On-Device AI Autocorrect & Smart Typing Assistant")
+    parser.add_argument(
+        "-c", "--confidence", "--confidence-threshold", "--conf",
+        type=float,
+        default=None,
+        help="Confidence filter threshold (e.g. 0.95, 95, 0.90, 80). Defaults to 95% (policy.yaml).",
+    )
+    args, _ = parser.parse_known_args()
+
+    hook = GlobalAutocorrectHook(confidence_threshold=args.confidence)
     hook.run()
 
 

@@ -16,16 +16,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine.autocorrect_service import AutocorrectService
 
 
-def run_demo():
+def run_demo(confidence_threshold=None):
     print("\n" + "=" * 70)
-    print("  [AI-POWERED LOCAL LIVE AUTOCORRECT - INTERACTIVE DEMO]")
+    print("  [NEURATYPE - AI LOCAL LIVE AUTOCORRECT DEMO]")
     print("=" * 70)
 
-    service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
+    eff_conf = confidence_threshold
+    if eff_conf is not None and eff_conf > 1.0:
+        eff_conf = eff_conf / 100.0
+
+    service = AutocorrectService(confidence_threshold=eff_conf, revert_timeout=3.5)
     hw = service.onnx_engine.get_hardware_info()
 
     print(f"  * Hardware Engine: {hw['active_provider']} ({'NPU/GPU' if hw['is_npu_or_gpu'] else 'CPU AVX2'})")
     print(f"  * Model Size:      {hw['model_size_mb']:.2f} MB (INT8 Quantized)")
+    print(f"  * Active Filter:   {service.confidence_threshold:.1%}")
     print("=" * 70 + "\n")
 
     scenarios = [
@@ -92,4 +97,13 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    import argparse
+    parser = argparse.ArgumentParser(description="NeuraType Interactive Demo Simulator")
+    parser.add_argument(
+        "-c", "--confidence", "--conf",
+        type=float,
+        default=None,
+        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to 95%.",
+    )
+    args, _ = parser.parse_known_args()
+    run_demo(confidence_threshold=args.confidence)

@@ -16,15 +16,19 @@ from engine.autocorrect_service import AutocorrectService, CorrectionResult
 
 
 class AutocorrectSandboxGUI:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root, confidence_threshold=None):
         self.root = root
-        self.root.title("AI Local Autocorrect - Safe Sandbox Testbed")
+        self.root.title("NeuraType - Safe Sandbox Testbed")
         self.root.geometry("960x700")
         self.root.minsize(800, 600)
         self.root.configure(bg="#121214")
 
+        eff_conf = confidence_threshold
+        if eff_conf is not None and eff_conf > 1.0:
+            eff_conf = eff_conf / 100.0
+
         # Initialize Autocorrect Engine
-        self.service = AutocorrectService(confidence_threshold=0.95, revert_timeout=3.5)
+        self.service = AutocorrectService(confidence_threshold=eff_conf, revert_timeout=3.5)
         self.hw_info = self.service.onnx_engine.get_hardware_info()
 
         # Stats
@@ -197,7 +201,45 @@ class AutocorrectSandboxGUI:
             padx=12,
             pady=8,
         )
-        self.stats_lbl.pack(side=tk.RIGHT)
+        self.stats_lbl.pack(side=tk.LEFT)
+
+        # Confidence Filter Adjustment Slider
+        slider_frame = tk.Frame(telemetry_frame, bg=self.card_bg)
+        slider_frame.pack(side=tk.RIGHT, padx=12, pady=4)
+
+        tk.Label(
+            slider_frame,
+            text="Filter Conf:",
+            font=("Segoe UI", 9),
+            fg=self.text_secondary,
+            bg=self.card_bg,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
+        self.conf_slider = tk.Scale(
+            slider_frame,
+            from_=50,
+            to=99,
+            orient=tk.HORIZONTAL,
+            showvalue=0,
+            bg=self.card_bg,
+            troughcolor="#121214",
+            activebackground=self.accent_blue,
+            highlightthickness=0,
+            command=self._on_slider_change,
+            length=90,
+        )
+        self.conf_slider.set(int(self.service.confidence_threshold * 100))
+        self.conf_slider.pack(side=tk.LEFT, padx=2)
+
+        self.conf_slider_lbl = tk.Label(
+            slider_frame,
+            text=f"{int(self.service.confidence_threshold * 100)}%",
+            font=("Segoe UI", 9, "bold"),
+            fg=self.accent_blue,
+            bg=self.card_bg,
+            width=4,
+        )
+        self.conf_slider_lbl.pack(side=tk.LEFT)
 
         # 4. Event Log Card
         log_card = tk.Frame(self.root, bg=self.card_bg, highlightthickness=1, highlightbackground=self.border_col)
@@ -346,13 +388,29 @@ class AutocorrectSandboxGUI:
                 except Exception:
                     pass
 
-        t = threading.Thread(target=poll, daemon=True)
-        t.start()
+    def _on_slider_change(self, val):
+        try:
+            int_val = int(val)
+            self.service.confidence_threshold = int_val / 100.0
+            if hasattr(self, "conf_slider_lbl"):
+                self.conf_slider_lbl.config(text=f"{int_val}%")
+        except Exception:
+            pass
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="NeuraType Desktop Sandbox GUI")
+    parser.add_argument(
+        "-c", "--confidence", "--conf",
+        type=float,
+        default=None,
+        help="Custom confidence threshold (e.g. 0.95 or 95). Defaults to 95%.",
+    )
+    args, _ = parser.parse_known_args()
+
     root = tk.Tk()
-    app = AutocorrectSandboxGUI(root)
+    app = AutocorrectSandboxGUI(root, confidence_threshold=args.confidence)
     root.mainloop()
 
 

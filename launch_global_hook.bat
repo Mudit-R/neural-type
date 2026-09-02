@@ -9,5 +9,5 @@ echo     [Ctrl + Alt + Q] : Emergency Exit
 echo     [Tab]            : Undo Last Correction
 echo ============================================================
 echo.
-.venv\Scripts\python.exe win32_hook\global_keyboard_hook.py
+.venv\Scripts\python.exe win32_hook\global_keyboard_hook.py %*
 pause
